@@ -41,7 +41,7 @@ Herramienta web multiusuario para que los docentes de **Formación Profesional**
 ![Bloquear campos](bloquear_campos.gif)
 
 ### CREAR PROGRAMACIONES
-![Crear Programaciones](crear-programaciones.gif)
+![Crear Programaciones](crear-programacion.gif)
 
 ---
 
