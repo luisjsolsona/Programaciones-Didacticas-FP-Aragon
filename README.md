@@ -32,16 +32,16 @@ Herramienta web multiusuario para que los docentes de **Formación Profesional**
 ## ✨ Algunas caracterísicas
 
 ### Crear PERFILES
-<img>crear-perfiles.fig</img>
+(crear-perfiles.gif)
 
 ### Crear USUARIOS
-<img>crear-usuarios.fig</img>
+(rear-usuarios.gif)
 
 ### BLOQUEAR campos
-<img>bloquear_campos.fig</img>
+(bloquear_campos.gif)
 
 ### CREAR PROGRAMACIONES
-<img>crear-programaciones.fig</img>
+(crear-programaciones.gif)
 
 ---
 
