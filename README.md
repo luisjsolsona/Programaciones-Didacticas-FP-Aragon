@@ -26,6 +26,23 @@ Herramienta web multiusuario para que los docentes de **Formación Profesional**
 - Cada **perfil de ciclo** puede tener sus propios valores bloqueados distintos de los de otros ciclos
 - Los campos bloqueados se aplican automáticamente al abrir cualquier programación del ciclo correspondiente
 
+
+---
+
+## ✨ Algunas caracterísicas
+
+### Crear PERFILES
+<img>crear-perfiles.fig</img>
+
+### Crear USUARIOS
+<img>crear-usuarios.fig</img>
+
+### BLOQUEAR campos
+<img>bloquear_campos.fig</img>
+
+### CREAR PROGRAMACIONES
+<img>crear-programaciones.fig</img>
+
 ---
 
 ## 🏗 Arquitectura
