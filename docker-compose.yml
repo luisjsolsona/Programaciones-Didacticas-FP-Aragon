@@ -1,0 +1,17 @@
+# =============================================================
+# .gitignore — Ficheros a excluir del repositorio
+# =============================================================
+
+# Base de datos SQLite (datos reales, no van al repo)
+data/
+
+# Dependencias Node.js
+backend/node_modules/
+
+# Variables de entorno locales (si usas .env en desarrollo)
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
