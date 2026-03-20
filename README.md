@@ -35,7 +35,7 @@ Herramienta web multiusuario para que los docentes de **Formación Profesional**
 ![crear perfiles](crear-perfiles.gif)
 
 ### Crear USUARIOS
-![crear usuarios](rear-usuarios.gif)
+![crear usuarios](crear-usuarios.gif)
 
 ### BLOQUEAR campos
 ![Bloquear campos](bloquear_campos.gif)
