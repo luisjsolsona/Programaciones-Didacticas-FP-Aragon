@@ -1,0 +1,4041 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Programaciones Didácticas FP</title>
+<script>
+// =============================================================
+// api.js — Cliente de la API REST (inlined)
+// =============================================================
+
+// Helper: ejecuta un fetch y lanza error si no es OK
+async function apiFetch(path, options = {}) {
+  const res = await fetch('/api' + path, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    ...options,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || `Error ${res.status}`);
+  return json;
+}
+
+const Auth = {
+  login:  (username, password) => apiFetch('/auth/login',  { method: 'POST', body: { username, password } }),
+  logout: ()                   => apiFetch('/auth/logout', { method: 'POST' }),
+  me:     ()                   => apiFetch('/auth/me'),
+};
+
+const Users = {
+  list:           ()        => apiFetch('/users'),
+  create:         (body)    => apiFetch('/users',              { method: 'POST',   body }),
+  get:            (id)      => apiFetch(`/users/${id}`),
+  update:         (id,body) => apiFetch(`/users/${id}`,        { method: 'PUT',    body }),
+  delete:         (id)      => apiFetch(`/users/${id}`,        { method: 'DELETE' }),
+  changePassword: (id,body) => apiFetch(`/users/${id}/password`, { method: 'PUT', body }),
+};
+
+const Profiles = {
+  list:   ()        => apiFetch('/profiles'),
+  create: (body)    => apiFetch('/profiles',      { method: 'POST',   body }),
+  get:    (id)      => apiFetch(`/profiles/${id}`),
+  update: (id,body) => apiFetch(`/profiles/${id}`, { method: 'PUT',   body }),
+  delete: (id)      => apiFetch(`/profiles/${id}`, { method: 'DELETE' }),
+};
+
+const Modules = {
+  list:   ()        => apiFetch('/modules'),
+  create: (body)    => apiFetch('/modules',       { method: 'POST',   body }),
+  get:    (id)      => apiFetch(`/modules/${id}`),
+  update: (id,body) => apiFetch(`/modules/${id}`, { method: 'PUT',    body }),
+  delete: (id)      => apiFetch(`/modules/${id}`, { method: 'DELETE' }),
+};
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --navy: #1a2744;
+    --navy-light: #243358;
+    --gold: #c8a84b;
+    --gold-light: #e8c97a;
+    --cream: #f8f6f0;
+    --cream-dark: #efe9da;
+    --text: #2a2a2a;
+    --text-muted: #6b6b6b;
+    --border: #d4cfc4;
+    --white: #ffffff;
+    --success: #2d6a4f;
+    --danger: #8b1a1a;
+    --locked-bg: #f0f4ff;
+    --locked-border: #b8c8ff;
+    --shadow: 0 2px 16px rgba(26,39,68,0.10);
+    --shadow-lg: 0 8px 40px rgba(26,39,68,0.16);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ===== HEADER ===== */
+  .app-header {
+    background: var(--navy);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  }
+  .app-header .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .app-header .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--gold);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Crimson Pro', serif;
+    font-size: 20px; font-weight: 600; color: var(--navy);
+  }
+  .app-header .logo-text {
+    font-family: 'Crimson Pro', serif;
+    font-size: 18px; color: var(--white); letter-spacing: 0.02em;
+  }
+  .app-header .logo-text span { color: var(--gold); }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 6px; border: none;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s ease; text-decoration: none;
+  }
+  .btn-primary { background: var(--gold); color: var(--navy); }
+  .btn-primary:hover { background: var(--gold-light); }
+  .btn-outline {
+    background: transparent; color: var(--white);
+    border: 1.5px solid rgba(255,255,255,0.3);
+  }
+  .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1.5px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--navy); color: var(--navy); }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-danger:hover { opacity: 0.85; }
+  .btn-success { background: var(--success); color: white; }
+  .btn-success:hover { opacity: 0.85; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ===== LAYOUT ===== */
+  .app-layout { display: flex; min-height: calc(100vh - 64px); }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar {
+    width: 280px; min-width: 280px;
+    background: var(--white);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-head {
+    padding: 20px 20px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-head h2 {
+    font-family: 'Crimson Pro', serif;
+    font-size: 16px; color: var(--navy); font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .modules-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .module-item {
+    padding: 10px 12px; border-radius: 6px; cursor: pointer;
+    transition: all 0.12s; margin-bottom: 2px;
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1.5px solid transparent;
+  }
+  .module-item:hover { background: var(--cream); }
+  .module-item.active { background: var(--navy); border-color: var(--navy); }
+  .module-item.active .module-name { color: white; }
+  .module-item.active .module-code { color: var(--gold); }
+  .module-name { font-size: 13px; font-weight: 500; color: var(--text); }
+  .module-code { font-size: 11px; color: var(--text-muted); font-family: monospace; }
+  .module-item-actions { display: none; gap: 3px; }
+  .module-item:hover .module-item-actions,
+  .module-item.active .module-item-actions { display: flex; }
+  .module-delete-btn {
+    background: none; border: none; cursor: pointer;
+    color: rgba(255,255,255,0.5); font-size: 13px; padding: 2px 5px;
+    border-radius: 3px; transition: color 0.12s;
+  }
+  .module-delete-btn:hover { color: #ff6b6b; }
+  .module-item:not(.active) .module-delete-btn { color: var(--text-muted); }
+  .module-action-btn {
+    background: none; border: none; cursor: pointer;
+    color: rgba(255,255,255,0.5); font-size: 13px; padding: 2px 5px;
+    border-radius: 3px; transition: color 0.12s;
+  }
+  .module-action-btn:hover { color: var(--gold-light); }
+  .module-item:not(.active) .module-action-btn { color: var(--text-muted); }
+  .module-item:not(.active) .module-action-btn:hover { color: var(--navy); }
+
+  .sidebar-footer { padding: 12px; border-top: 1px solid var(--border); }
+
+  /* ===== MAIN CONTENT ===== */
+  .main-content { flex: 1; overflow-y: auto; padding: 32px; }
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 60vh; text-align: center; gap: 16px;
+  }
+  .empty-state .icon { font-size: 64px; opacity: 0.3; }
+  .empty-state h2 { font-family: 'Crimson Pro', serif; font-size: 24px; color: var(--navy); }
+  .empty-state p { color: var(--text-muted); font-size: 14px; max-width: 300px; }
+
+  /* ===== FORM SECTIONS ===== */
+  .form-sections { display: flex; flex-direction: column; gap: 0; }
+
+  .form-section {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .section-header {
+    padding: 16px 24px;
+    background: var(--navy);
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none;
+  }
+  .section-header h3 {
+    font-family: 'Crimson Pro', serif;
+    font-size: 17px; font-weight: 600; color: var(--white);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-header .section-letter {
+    background: var(--gold); color: var(--navy);
+    width: 24px; height: 24px; border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; font-family: 'DM Sans', sans-serif;
+  }
+  .section-chevron { color: rgba(255,255,255,0.6); font-size: 12px; transition: transform 0.2s; }
+  .section-header.collapsed .section-chevron { transform: rotate(-90deg); }
+  .section-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .section-body.hidden { display: none; }
+
+  /* ===== FIELDS ===== */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field-label {
+    font-size: 15px; font-weight: 600; color: var(--navy);
+    display: flex; align-items: center; gap: 6px;
+    letter-spacing: 0.01em;
+  }
+  .locked-badge {
+    background: var(--navy); color: var(--gold);
+    font-size: 9px; padding: 2px 5px; border-radius: 3px; letter-spacing: 0.05em;
+  }
+  .field input, .field textarea, .field select {
+    width: 100%; padding: 10px 14px;
+    border: 1.5px solid var(--border); border-radius: 6px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text);
+    background: var(--white); transition: border-color 0.15s;
+    resize: vertical;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus {
+    outline: none; border-color: var(--navy);
+  }
+  .field input.locked, .field textarea.locked, .field select.locked {
+    background: var(--locked-bg); border-color: var(--locked-border);
+    color: var(--text-muted); cursor: not-allowed;
+  }
+  .field textarea { min-height: 100px; overflow: hidden; resize: none; }
+  .field textarea.tall { min-height: 160px; }
+
+  /* ===== TABLA CALIFICACIÓN POR EVALUACIÓN ===== */
+  .cal-ev-wrap { display: flex; flex-direction: column; gap: 16px; }
+  .cal-ev-block {
+    border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  .cal-ev-head {
+    background: var(--navy); color: white;
+    padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .cal-ev-head-title { font-weight: 600; font-size: 14px; }
+  .cal-ev-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .cal-ev-table th {
+    background: var(--cream-dark); padding: 8px 10px; text-align: left;
+    font-size: 11px; font-weight: 700; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--border);
+  }
+  .cal-ev-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .cal-ev-table tr:last-child td { border-bottom: none; }
+  .cal-ev-table td input, .cal-ev-table td textarea {
+    width: 100%; border: none; background: transparent;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); padding: 3px 4px;
+  }
+  .cal-ev-table td input[type=number] { width: 64px; text-align: right; }
+  .cal-ev-table td input:focus, .cal-ev-table td textarea:focus {
+    outline: 1px solid var(--navy); background: rgba(26,39,68,0.04); border-radius: 3px;
+  }
+  .cal-ev-table .ra-cell { display: flex; align-items: center; gap: 8px; }
+
+  /* ===== CAMPO DIVIDER ===== */
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0 4px;
+  }
+  .field-divider-label {
+    font-family: 'Crimson Pro', serif;
+    font-size: 16px; font-weight: 600; color: var(--navy);
+    white-space: nowrap;
+  }
+  .field-divider-line {
+    flex: 1; height: 2px;
+    background: linear-gradient(to right, var(--gold), transparent);
+  }
+
+  /* ===== RICH TEXT EDITOR ===== */
+  .rich-editor-wrap {
+    border: 1.5px solid var(--border); border-radius: 6px;
+    overflow: hidden; background: var(--white);
+    transition: border-color 0.15s;
+  }
+  .rich-editor-wrap:focus-within { border-color: var(--navy); }
+  .rich-editor-wrap.locked { background: var(--locked-bg); border-color: var(--locked-border); }
+
+  .rich-toolbar {
+    display: flex; align-items: center; gap: 2px;
+    padding: 6px 8px; background: var(--cream);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .rich-toolbar button {
+    background: none; border: none; cursor: pointer;
+    width: 28px; height: 28px; border-radius: 5px;
+    font-size: 13px; display: flex; align-items: center; justify-content: center;
+    color: var(--text); transition: background 0.12s;
+    font-family: serif;
+  }
+  .rich-toolbar button:hover { background: var(--cream-dark); }
+  .rich-toolbar button.active { background: var(--navy); color: white; }
+  .rich-toolbar .toolbar-sep {
+    width: 1px; height: 20px; background: var(--border); margin: 0 4px;
+  }
+  .rich-toolbar button[title]:hover::after {
+    content: attr(title);
+    position: absolute; bottom: -26px; left: 50%; transform: translateX(-50%);
+    background: var(--navy); color: white; font-size: 10px; padding: 2px 6px;
+    border-radius: 3px; white-space: nowrap; pointer-events: none; z-index: 10;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .rich-toolbar button { position: relative; }
+
+  .rich-content {
+    padding: 10px 14px; min-height: 100px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px;
+    color: var(--text); line-height: 1.6; outline: none;
+  }
+  .rich-content.tall { min-height: 160px; }
+  .rich-content:empty:before {
+    content: attr(data-placeholder);
+    color: #b0aaa0; font-style: italic; pointer-events: none;
+  }
+  .rich-content ul { margin: 4px 0 4px 20px; padding: 0; }
+  .rich-content ol { margin: 4px 0 4px 20px; padding: 0; }
+  .rich-content li { margin: 2px 0; }
+  /* Checkbox list */
+  .rich-content ul.checklist { list-style: none; margin-left: 4px; }
+  .rich-content ul.checklist li { display: flex; align-items: flex-start; gap: 6px; }
+  .rich-content ul.checklist li input[type=checkbox] { margin-top: 3px; flex-shrink: 0; }
+  .rich-content.locked { pointer-events: none; background: var(--locked-bg); color: var(--text-muted); }
+
+  .field input::placeholder,
+  .field textarea::placeholder { color: #b0aaa0; font-style: italic; }
+  .editable-table td input::placeholder,
+  .editable-table td textarea::placeholder { color: #b0aaa0; font-style: italic; }
+
+  .field-hint { font-size: 11px; color: var(--text-muted); font-style: italic; }
+
+  /* Two column fields */
+  .fields-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .fields-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  /* ===== TABLES ===== */
+  .table-container { overflow-x: auto; }
+  .editable-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .editable-table th {
+    background: var(--navy); color: var(--white);
+    padding: 10px 12px; text-align: left; font-weight: 500; font-size: 12px;
+    white-space: nowrap;
+  }
+  .editable-table td {
+    padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: top;
+  }
+  .editable-table tr:last-child td { border-bottom: none; }
+  .editable-table tr:nth-child(even) td { background: var(--cream); }
+  .editable-table td input, .editable-table td textarea, .editable-table td select {
+    width: 100%; border: none; background: transparent;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text);
+    padding: 6px 6px; resize: vertical; min-height: 36px;
+  }
+  .editable-table td input:focus, .editable-table td textarea:focus {
+    outline: 1px solid var(--navy); background: rgba(26,39,68,0.04); border-radius: 3px;
+  }
+  .editable-table td.locked-cell input,
+  .editable-table td.locked-cell textarea { color: var(--text-muted); cursor: not-allowed; }
+  .editable-table td.locked-cell { background: var(--locked-bg); }
+  .table-add-row {
+    margin-top: 8px; font-size: 12px; color: var(--navy);
+    background: none; border: 1.5px dashed var(--border); border-radius: 6px;
+    width: 100%; padding: 8px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .table-add-row:hover { border-color: var(--navy); }
+
+  /* ===== RA / CALIFICACION ===== */
+  .ra-block {
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  .ra-block-head {
+    background: var(--cream-dark); padding: 10px 16px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ra-badge {
+    background: var(--navy); color: var(--gold);
+    font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .ra-title { font-size: 13px; font-weight: 500; flex: 1; }
+  .ra-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .pct-row { display: flex; align-items: center; gap: 10px; }
+  .pct-label { font-size: 12px; color: var(--text-muted); width: 180px; flex-shrink: 0; }
+  .pct-input {
+    width: 70px; padding: 5px 8px; border: 1.5px solid var(--border);
+    border-radius: 5px; font-family: 'DM Sans', sans-serif; font-size: 13px; text-align: right;
+  }
+  .pct-symbol { font-size: 13px; color: var(--text-muted); }
+  .pct-bar { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .pct-bar-fill { height: 100%; background: var(--navy); border-radius: 3px; transition: width 0.3s; }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center; z-index: 1000;
+    backdrop-filter: blur(3px);
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: var(--white); border-radius: 12px; width: 440px; max-width: 95vw;
+    box-shadow: var(--shadow-lg); overflow: hidden;
+  }
+  .modal-head {
+    background: var(--navy); padding: 20px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-head h2 { font-family: 'Crimson Pro', serif; font-size: 20px; color: var(--white); }
+  .modal-close { background: none; border: none; color: rgba(255,255,255,0.6); font-size: 20px; cursor: pointer; }
+  .modal-close:hover { color: white; }
+  .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .modal-foot { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* ===== ADMIN PANEL ===== */
+  .admin-panel-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: flex; align-items: stretch; z-index: 200;
+    backdrop-filter: blur(2px);
+  }
+  .admin-panel-overlay.hidden { display: none; }
+  .admin-panel {
+    width: 100vw; height: 100vh; background: var(--white);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* Cabecera del panel */
+  .admin-panel-head {
+    background: var(--navy); padding: 0 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0; height: 56px;
+  }
+  .admin-panel-head h2 { font-family: 'Crimson Pro', serif; font-size: 20px; color: var(--white); }
+
+  /* Barra de pestañas */
+  .admin-tabs {
+    display: flex; align-items: stretch; gap: 0;
+    background: var(--navy-light); border-bottom: 2px solid var(--gold);
+    flex-shrink: 0; padding: 0 24px;
+  }
+  .admin-tab {
+    padding: 10px 22px; font-size: 13px; font-weight: 600;
+    color: rgba(255,255,255,.55); cursor: pointer; border: none;
+    background: none; border-bottom: 3px solid transparent;
+    margin-bottom: -2px; transition: all .15s; display: flex; align-items: center; gap: 6px;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .admin-tab:hover  { color: rgba(255,255,255,.85); }
+  .admin-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+  /* Contenido de las pestañas */
+  .admin-panel-body {
+    flex: 1; overflow-y: auto; background: var(--cream);
+  }
+  .admin-tab-panel {
+    display: none; padding: 28px 32px;
+    max-width: 1100px; margin: 0 auto; width: 100%;
+  }
+  .admin-tab-panel.active { display: block; }
+
+  /* Pie del panel */
+  .admin-panel-foot {
+    padding: 12px 24px; border-top: 1px solid var(--border);
+    display: flex; gap: 8px; flex-shrink: 0; background: white;
+  }
+
+  /* Secciones dentro de pestaña */
+  .admin-section {
+    background: white; border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; margin-bottom: 20px;
+  }
+  .admin-section-head {
+    padding: 12px 18px; background: var(--navy);
+    font-family: 'Crimson Pro', serif; font-size: 16px;
+    font-weight: 600; color: white; display: flex; align-items: center; gap: 8px;
+  }
+  .admin-section-body { padding: 18px; }
+  .admin-section-title {
+    font-size: 11px; font-weight: 700; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 8px;
+    border-bottom: 1.5px solid var(--border); margin-bottom: 12px;
+  }
+  .admin-panel-col { display: flex; flex-direction: column; gap: 20px; }
+
+  .admin-field-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 6px;
+    margin-bottom: 6px;
+  }
+  .admin-field-row:hover { border-color: var(--navy); }
+  .admin-field-info { flex: 1; }
+  .admin-field-name { font-size: 13px; font-weight: 500; }
+  .admin-field-key { font-size: 11px; color: var(--text-muted); font-family: monospace; }
+  .admin-field-controls { display: flex; align-items: center; gap: 10px; }
+
+  /* Toggle switch */
+  .toggle { position: relative; display: inline-block; width: 40px; height: 22px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--border); border-radius: 22px; transition: 0.2s;
+  }
+  .toggle-slider:before {
+    position: absolute; content: ""; height: 16px; width: 16px;
+    left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s;
+  }
+  .toggle input:checked + .toggle-slider { background: var(--navy); }
+  .toggle input:checked + .toggle-slider:before { transform: translateX(18px); }
+
+  .admin-panel-foot { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* ===== TOOLBAR ===== */
+  .module-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+  }
+  .module-toolbar-left h1 {
+    font-family: 'Crimson Pro', serif;
+    font-size: 26px; color: var(--navy); font-weight: 600;
+  }
+  .module-toolbar-left .module-meta {
+    font-size: 13px; color: var(--text-muted); margin-top: 2px;
+  }
+  .toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ===== STATUS BAR ===== */
+  .status-bar {
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--navy); color: white; padding: 10px 18px;
+    border-radius: 8px; font-size: 13px; box-shadow: var(--shadow-lg);
+    transform: translateY(100px); opacity: 0;
+    transition: all 0.3s ease; z-index: 500;
+  }
+  .status-bar.show { transform: translateY(0); opacity: 1; }
+  .status-bar.success { background: var(--success); }
+  .status-bar.error { background: var(--danger); }
+
+  /* ===== LOADING ===== */
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(255,255,255,0.85);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 900; gap: 16px;
+  }
+  .loading-overlay.hidden { display: none; }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid var(--border);
+    border-top-color: var(--navy); border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-family: 'Crimson Pro', serif; font-size: 18px; color: var(--navy); }
+
+  .section-info-box {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: #eef4ff; border: 1.5px solid #b8ceff;
+    border-radius: 8px; padding: 14px 16px; margin-bottom: 4px;
+  }
+  .section-info-box .info-icon {
+    font-size: 20px; flex-shrink: 0; margin-top: 1px;
+  }
+  .section-info-box .info-content { flex: 1; }
+  .section-info-box .info-text {
+    font-size: 13px; color: #2a3a6b; line-height: 1.55; margin-bottom: 8px;
+  }
+  .section-info-box .info-text code {
+    background: rgba(26,39,68,0.08); padding: 1px 5px; border-radius: 3px;
+    font-family: monospace; font-size: 12px;
+  }
+  .section-info-box .info-link {
+    display: inline-flex; align-items: center; gap: 5px;
+    color: var(--navy); font-size: 13px; font-weight: 600;
+    text-decoration: none; border-bottom: 1.5px solid var(--navy);
+    padding-bottom: 1px; transition: opacity 0.15s;
+  }
+  .section-info-box .info-link:hover { opacity: 0.7; }
+
+  /* ===== MODAL IMPORTACIÓN CATEDU ===== */
+  .import-modal {
+    background: var(--white); border-radius: 12px;
+    width: 680px; max-width: 96vw; max-height: 90vh;
+    box-shadow: var(--shadow-lg); display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* Steps breadcrumb */
+  .import-steps {
+    display: flex; align-items: center; gap: 4px;
+    padding: 12px 24px; background: var(--cream); border-bottom: 1px solid var(--border);
+    font-size: 12px; font-weight: 600; flex-shrink: 0;
+  }
+  .import-step { color: var(--text-muted); padding: 3px 8px; border-radius: 4px; }
+  .import-step.active { background: var(--navy); color: white; }
+  .import-step.done { color: var(--navy); text-decoration: underline; cursor: pointer; }
+  .import-step-arrow { color: var(--border); font-size: 16px; }
+
+  /* Step panels */
+  .import-step-panel { padding: 20px 24px; }
+  .import-step-title { font-family: 'Crimson Pro', serif; font-size: 16px; font-weight: 600; color: var(--navy); margin-bottom: 14px; }
+  .import-step-status { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; min-height: 20px; display:flex;align-items:center;gap:8px }
+
+  /* Grid de familias */
+  .import-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px;
+  }
+  .import-grid-item {
+    padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+    cursor: pointer; transition: all 0.12s; font-size: 13px;
+    background: white;
+  }
+  .import-grid-item:hover { border-color: var(--navy); background: var(--locked-bg); }
+  .import-grid-item .ig-code { font-size: 10px; font-weight: 700; color: var(--text-muted); font-family: monospace; margin-bottom: 3px; }
+  .import-grid-item .ig-name { font-weight: 500; color: var(--text); line-height: 1.3; }
+
+  /* Lista de ciclos / módulos */
+  .import-list { display: flex; flex-direction: column; gap: 5px; }
+  .import-list-item {
+    padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 7px;
+    cursor: pointer; transition: all 0.12s; background: white;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .import-list-item:hover { border-color: var(--navy); background: var(--locked-bg); }
+  .import-list-item .il-code { font-size: 11px; font-weight: 700; color: var(--navy); min-width: 50px; font-family: monospace; }
+  .import-list-item .il-name { font-size: 13px; color: var(--text); flex: 1; }
+  .import-list-item .il-meta { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+  /* Spinner inline */
+  .spinner-sm {
+    width: 16px; height: 16px; border: 2px solid var(--border);
+    border-top-color: var(--navy); border-radius: 50%; animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  .import-mod-card {
+    background: var(--cream); border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 14px 16px; margin-bottom: 4px;
+    display: none;
+  }
+  .import-mod-card.visible { display: block; }
+  .import-mod-title { font-weight: 600; color: var(--navy); font-size: 14px; }
+  .import-mod-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+  .import-ra-status {
+    font-size: 12px; padding: 6px 10px; border-radius: 5px; margin-top: 6px;
+    display: none;
+  }
+  .import-ra-status.show { display: block; }
+  .import-ra-status.loading { background: #eef4ff; color: var(--navy); }
+  .import-ra-status.ok  { background: #edfbf2; color: #1a7a3a; }
+  .import-ra-status.err { background: #fef0f0; color: #c00; }
+  .import-checks { display: flex; flex-direction: column; gap: 8px; }
+  .import-check-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 7px;
+    background: white;
+  }
+  .import-check-row label { font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .import-check-row .import-check-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    .sidebar { width: 220px; min-width: 220px; }
+    .main-content { padding: 16px; }
+    .fields-row, .fields-row-3 { grid-template-columns: 1fr; }
+    .admin-panel { width: 100%; }
+  }
+
+  /* ===== MENÚ DATOS ===== */
+  .data-menu-wrap { position: relative; display: flex; align-items: center; gap: 8px; }
+  .save-indicator {
+    font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 5px;
+    display: flex; align-items: center; gap: 5px; white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .save-indicator.saved   { background: rgba(45,106,79,.25);  color: #7fffc4; }
+  .save-indicator.saving  { background: rgba(200,168,75,.2);  color: var(--gold-light); }
+  .save-indicator.error   { background: rgba(139,26,26,.3);   color: #ffaaaa; }
+  .save-indicator.idle    { opacity: 0; pointer-events: none; }
+  .data-dropdown {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    background: var(--white); border: 1.5px solid var(--border); border-radius: 10px;
+    box-shadow: var(--shadow-lg); min-width: 240px; overflow: hidden;
+    z-index: 500; display: none;
+  }
+  .data-dropdown.open { display: block; }
+  .data-dropdown-section {
+    padding: 6px 0; border-bottom: 1px solid var(--border);
+  }
+  .data-dropdown-section:last-child { border-bottom: none; }
+  .data-dropdown-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px; font-size: 13px; cursor: pointer;
+    color: var(--text); transition: background 0.1s; white-space: nowrap;
+    background: none; border: none; width: 100%; text-align: left;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .data-dropdown-item:hover { background: var(--cream); }
+  .data-dropdown-item.danger { color: var(--danger); }
+  .data-dropdown-item.danger:hover { background: #fff0f0; }
+  .data-dropdown-item .dd-icon { width: 20px; text-align: center; font-size: 14px; }
+  .data-dropdown-label {
+    padding: 6px 16px 2px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+
+<!-- =========================================================
+     PANTALLA DE LOGIN
+     Se muestra antes de la app. Se oculta tras autenticarse.
+     ========================================================= -->
+<div id="loginScreen" style="
+  position:fixed;inset:0;background:var(--navy);
+  display:flex;align-items:center;justify-content:center;
+  z-index:9999;flex-direction:column;gap:0">
+  <div style="background:white;border-radius:14px;padding:40px 36px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="background:var(--navy);color:var(--gold);font-family:'Crimson Pro',serif;font-size:28px;font-weight:600;
+                  width:60px;height:60px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px">PD</div>
+      <div style="font-family:'Crimson Pro',serif;font-size:20px;color:var(--navy);font-weight:600">Programaciones Didácticas</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">FP Aragón</div>
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label class="field-label">Usuario</label>
+      <input type="text" id="loginUsername" placeholder="Tu nombre de usuario"
+             style="border:1.5px solid var(--border);border-radius:7px;padding:10px 14px;font-size:14px;width:100%"
+             onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+    </div>
+    <div class="field" style="margin-bottom:20px">
+      <label class="field-label">Contraseña</label>
+      <input type="password" id="loginPassword" placeholder="••••••••"
+             style="border:1.5px solid var(--border);border-radius:7px;padding:10px 14px;font-size:14px;width:100%"
+             onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:11px;font-size:14px;justify-content:center" onclick="doLogin()">
+      Iniciar sesión
+    </button>
+    <div id="loginError" style="display:none;margin-top:12px;background:#fef0f0;color:var(--danger);
+         border-radius:6px;padding:8px 12px;font-size:13px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="app-header">
+  <div class="logo">
+    <div class="logo-icon">PD</div>
+    <div class="logo-text">Programaciones <span>Didácticas</span> · FP Aragón</div>
+  </div>
+  <div class="header-actions">
+    <div id="headerUserInfo" style="font-size:12px;color:rgba(255,255,255,.6);margin-right:4px"></div>
+    <div class="data-menu-wrap" id="dataMenuWrap">
+      <div class="save-indicator idle" id="saveIndicator">✅ Guardado</div>
+      <button class="btn btn-outline btn-sm" onclick="toggleDataMenu(event)">🗄 Datos</button>
+      <div class="data-dropdown" id="dataDropdown">
+        <div class="data-dropdown-section">
+          <div class="data-dropdown-label">Guardado local</div>
+          <button class="data-dropdown-item" onclick="ddSaveNow()">
+            <span class="dd-icon">💾</span> Guardar ahora
+          </button>
+          <button class="data-dropdown-item danger" onclick="ddClearData()">
+            <span class="dd-icon">🗑</span> Borrar datos guardados
+          </button>
+        </div>
+        <div class="data-dropdown-section">
+          <div class="data-dropdown-label">Copia de seguridad</div>
+          <button class="data-dropdown-item" onclick="ddExportBackup()">
+            <span class="dd-icon">📦</span> Exportar copia de seguridad (.json)
+          </button>
+          <button class="data-dropdown-item" onclick="ddRestoreBackup()">
+            <span class="dd-icon">📂</span> Restaurar copia de seguridad (.json)
+          </button>
+        </div>
+        <div class="data-dropdown-section">
+          <div class="data-dropdown-label">Exportar módulo activo</div>
+          <button class="data-dropdown-item" onclick="ddExportModuleJSON()">
+            <span class="dd-icon">⬇</span> Exportar módulo (.json)
+          </button>
+          <button class="data-dropdown-item" onclick="ddImportModuleJSON()">
+            <span class="dd-icon">⬆</span> Importar módulo (.json)
+          </button>
+        </div>
+      </div>
+      <input type="file" id="restoreBackupInput" accept=".json" style="display:none" onchange="handleRestoreBackup(event)">
+      <input type="file" id="ddImportModuleInput" accept=".json" style="display:none" onchange="handleImportFile(event)">
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="openAdmin()">⚙ Panel Admin</button>
+    <button class="btn btn-outline btn-sm" onclick="doLogout()">⏻ Salir</button>
+  </div>
+</header>
+
+<!-- LAYOUT -->
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <h2>Módulos guardados</h2>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-primary btn-sm" style="flex:1" onclick="openNewModuleModal()">+ Nuevo</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="importModuleFile()" title="Importar módulo desde archivo .json">📂 Importar</button>
+      </div>
+    </div>
+    <div class="modules-list" id="modulesList"></div>
+    <div class="sidebar-footer" style="font-size:11px;color:var(--text-muted);text-align:center">
+      Datos guardados en este navegador
+    </div>
+  </aside>
+  <!-- Input oculto para importar archivo -->
+  <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(event)">
+
+  <!-- MAIN -->
+  <main class="main-content" id="mainContent">
+    <div class="empty-state">
+      <div class="icon">📋</div>
+      <h2>Selecciona o crea un módulo</h2>
+      <p>Usa el panel lateral para crear una nueva programación didáctica o abrir una guardada.</p>
+      <button class="btn btn-primary" onclick="openNewModuleModal()">Crear nueva programación</button>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL: IMPORTACIÓN DESDE CATEDU -->
+<div class="modal-overlay hidden" id="importCateduModal">
+  <div class="import-modal">
+    <div class="modal-head">
+      <h2 id="importModalTitle">📥 Importar RAs/CEs desde CATEDU</h2>
+      <button class="modal-close" onclick="closeImportModal()">✕</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;flex:1;gap:0">
+
+      <!-- Breadcrumb / pasos -->
+      <div class="import-steps" id="importSteps">
+        <div class="import-step active" id="stepBadge1">1. Familia</div>
+        <div class="import-step-arrow">›</div>
+        <div class="import-step" id="stepBadge2">2. Ciclo</div>
+        <div class="import-step-arrow">›</div>
+        <div class="import-step" id="stepBadge3">3. Módulo</div>
+        <div class="import-step-arrow">›</div>
+        <div class="import-step" id="stepBadge4">4. Importar</div>
+      </div>
+
+      <!-- PASO 1: Familia profesional -->
+      <div id="importStep1" class="import-step-panel">
+        <div class="import-step-title">Selecciona la familia profesional</div>
+        <div class="import-step-status" id="statusFamilias"></div>
+        <div class="import-grid" id="familiasList"></div>
+      </div>
+
+      <!-- PASO 2: Ciclo formativo -->
+      <div id="importStep2" class="import-step-panel" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <button class="btn btn-ghost btn-sm" onclick="importGoBack(1)">← Volver</button>
+          <div class="import-step-title" style="margin:0">Selecciona el ciclo formativo</div>
+        </div>
+        <div class="import-step-status" id="statusCiclos"></div>
+        <div class="import-list" id="ciclosList"></div>
+      </div>
+
+      <!-- PASO 3: Módulo -->
+      <div id="importStep3" class="import-step-panel" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <button class="btn btn-ghost btn-sm" onclick="importGoBack(2)">← Volver</button>
+          <div class="import-step-title" style="margin:0">Selecciona el módulo</div>
+        </div>
+        <div class="import-step-status" id="statusModulos"></div>
+        <div class="import-list" id="modulosList"></div>
+      </div>
+
+      <!-- PASO 4: Importar RAs -->
+      <div id="importStep4" class="import-step-panel" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <button class="btn btn-ghost btn-sm" onclick="importGoBack(3)">← Volver</button>
+          <div class="import-step-title" style="margin:0" id="step4Title">Importar RAs y CEs</div>
+        </div>
+
+        <!-- Card módulo seleccionado -->
+        <div class="import-mod-card visible" id="importModCard">
+          <div class="import-mod-title" id="importModTitle"></div>
+          <div class="import-mod-meta" id="importModMeta"></div>
+        </div>
+
+        <div class="field" style="margin-top:14px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-primary btn-sm" onclick="doImportRas()" id="loadRasBtn">⬇ Cargar RAs desde CATEDU</button>
+          </div>
+          <div class="import-ra-status" id="importRaStatus"></div>
+        </div>
+
+        <div id="importContextNote" style="display:none;font-size:12px;color:#555;padding:8px 12px;background:var(--cream);border-radius:6px;border:1px solid var(--border);margin-top:10px"></div>
+      </div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeImportModal()">Cancelar</button>
+      <button class="btn btn-primary" id="importApplyBtn" onclick="applyImport()" disabled>✔ Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: PREVISUALIZACIÓN -->
+<div class="modal-overlay hidden" id="previewModal" style="align-items:stretch;padding:0">
+  <div style="width:100%;height:100%;display:flex;flex-direction:column;background:white">
+    <div style="background:var(--navy);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <span style="font-family:'Crimson Pro',serif;font-size:18px;color:white">👁 Previsualización del documento</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="exportPDF()">📥 Exportar PDF</button>
+        <button class="btn btn-success btn-sm" onclick="exportWord()">📄 Exportar Word</button>
+        <button class="modal-close" onclick="closePreview()" style="margin-left:8px">✕</button>
+      </div>
+    </div>
+    <iframe id="previewFrame" style="flex:1;border:none;background:white"></iframe>
+  </div>
+</div>
+
+<!-- MODAL: nuevo módulo -->
+<div class="modal-overlay hidden" id="newModuleModal">
+  <div class="modal" style="width:500px;max-width:96vw">
+    <div class="modal-head">
+      <h2>Nueva programación</h2>
+      <button class="modal-close" onclick="closeNewModuleModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Botón importar desde CATEDU -->
+      <div style="background:var(--locked-bg);border:1.5px solid var(--locked-border);border-radius:8px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--navy)">Rellenar desde CATEDU</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Importa nombre, código, horas, ciclo y RAs/CEs automáticamente</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openImportForNew()">🔍 Buscar módulo</button>
+      </div>
+
+      <!-- Preview de datos importados desde CATEDU -->
+      <div id="newModCateduPreview" style="display:none;background:var(--cream);border:1.5px solid var(--border);border-radius:7px;padding:10px 14px;font-size:12px;color:var(--navy)">
+        <div style="font-weight:700;margin-bottom:4px">✅ Datos importados desde CATEDU:</div>
+        <div id="newModCateduPreviewText"></div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+
+      <div class="field">
+        <label class="field-label">Nombre del módulo <span style="color:var(--danger)">*</span></label>
+        <input type="text" id="newModuleName" placeholder="Ej: Sistemas operativos monopuesto">
+      </div>
+      <div class="fields-row">
+        <div class="field">
+          <label class="field-label">Código</label>
+          <input type="text" id="newModuleCode" placeholder="Ej: 0222">
+        </div>
+        <div class="field">
+          <label class="field-label">Horas/semana</label>
+          <input type="text" id="newModuleHorasSem" placeholder="Ej: 6">
+        </div>
+        <div class="field">
+          <label class="field-label">Horas totales</label>
+          <input type="text" id="newModuleHoras" placeholder="Ej: 200">
+        </div>
+        <div class="field">
+          <label class="field-label">Curso</label>
+          <input type="text" id="newModuleCourse" placeholder="Ej: 2025-2026">
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label">Ciclo formativo</label>
+        <input type="text" id="newModuleCycle" placeholder="Ej: Sistemas Microinformáticos y Redes (IFC201)">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeNewModuleModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="createModule()">Crear módulo</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: login admin -->
+<div class="modal-overlay hidden" id="adminLoginModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>🔐 Acceso administrador</h2>
+      <button class="modal-close" onclick="closeAdminLogin()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label">Contraseña</label>
+        <input type="password" id="adminPwdInput" placeholder="Contraseña de administrador" onkeydown="if(event.key==='Enter')verifyAdmin()">
+      </div>
+      <p class="field-hint">Si es la primera vez, la contraseña por defecto es: <strong>admin1234</strong></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeAdminLogin()">Cancelar</button>
+      <button class="btn btn-primary" onclick="verifyAdmin()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div class="admin-panel-overlay hidden" id="adminPanelOverlay">
+  <div class="admin-panel">
+
+    <!-- Cabecera -->
+    <div class="admin-panel-head">
+      <h2>⚙ Panel de administración</h2>
+      <button class="modal-close" onclick="closeAdminPanel()">✕</button>
+    </div>
+
+    <!-- Pestañas -->
+    <div class="admin-tabs" id="adminTabs">
+      <button class="admin-tab active" onclick="adminSwitchTab('users')"    data-tab="users">👨‍🏫 Docentes y seguridad</button>
+      <button class="admin-tab"        onclick="adminSwitchTab('profiles')" data-tab="profiles">🔄 Perfiles de ciclo</button>
+      <button class="admin-tab"        onclick="adminSwitchTab('locks')"    data-tab="locks">🔒 Campos bloqueados</button>
+    </div>
+
+    <!-- Contenido de pestañas -->
+    <div class="admin-panel-body">
+
+      <!-- ── PESTAÑA 1: Docentes y seguridad ── -->
+      <div class="admin-tab-panel active" id="adminTab-users">
+        <!-- Seguridad -->
+        <div class="admin-section">
+          <div class="admin-section-head">🔐 Seguridad</div>
+          <div class="admin-section-body">
+            <div class="field" style="max-width:360px">
+              <label class="field-label">Nueva contraseña de administrador</label>
+              <input type="password" id="adminNewPwd" placeholder="Dejar vacío para no cambiar"
+                style="border:1.5px solid var(--border);border-radius:6px;padding:8px 12px;font-size:13px;width:100%">
+            </div>
+          </div>
+        </div>
+        <!-- Docentes -->
+        <div class="admin-section">
+          <div class="admin-section-head">👨‍🏫 Docentes</div>
+          <div class="admin-section-body">
+            <div id="adminUsersList" style="margin-bottom:12px">
+              <div style="font-size:12px;color:var(--text-muted)">Cargando…</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="adminOpenNewUser()">+ Nuevo docente</button>
+            <div id="adminNewUserForm" style="display:none;margin-top:14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;padding:14px">
+              <div style="font-weight:600;font-size:13px;margin-bottom:10px">Nuevo docente</div>
+              <div class="fields-row" style="margin-bottom:8px">
+                <div class="field">
+                  <label class="field-label">Usuario</label>
+                  <input type="text" id="newUserUsername" placeholder="nombre.apellido"
+                    style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
+                </div>
+                <div class="field">
+                  <label class="field-label">Nombre completo</label>
+                  <input type="text" id="newUserNombre" placeholder="Nombre Apellidos"
+                    style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
+                </div>
+              </div>
+              <div class="fields-row" style="margin-bottom:10px">
+                <div class="field">
+                  <label class="field-label">Contraseña inicial</label>
+                  <input type="password" id="newUserPwd" placeholder="Mín. 6 caracteres"
+                    style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
+                </div>
+                <div class="field">
+                  <label class="field-label">Ciclo asignado</label>
+                  <select id="newUserCiclo"
+                    style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
+                    <option value="">— Sin ciclo —</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="adminCreateUser()">Crear docente</button>
+                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('adminNewUserForm').style.display='none'">Cancelar</button>
+              </div>
+              <div id="adminNewUserStatus" style="font-size:12px;margin-top:6px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PESTAÑA 2: Perfiles de ciclo ── -->
+      <div class="admin-tab-panel" id="adminTab-profiles">
+        <div class="admin-section">
+          <div class="admin-section-head">🔄 Perfiles de ciclo formativo</div>
+          <div class="admin-section-body">
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
+              Cada perfil representa un ciclo formativo. Los campos bloqueados se configuran
+              en la pestaña <strong>🔒 Campos bloqueados</strong>.
+            </p>
+            <div id="adminProfilesList" style="margin-bottom:12px">
+              <div style="font-size:12px;color:var(--text-muted)">Cargando…</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="adminOpenNewProfile()">+ Nuevo perfil</button>
+            <div id="adminNewProfileForm" style="display:none;margin-top:14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;padding:14px">
+              <div style="font-weight:600;font-size:13px;margin-bottom:10px">Nuevo perfil de ciclo</div>
+              <div class="fields-row" style="margin-bottom:8px">
+                <div class="field">
+                  <label class="field-label">Código (ej: IFC201)</label>
+                  <input type="text" id="newProfileCod" placeholder="IFC201"
+                    style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
+                </div>
+                <div class="field">
+                  <label class="field-label">Nombre</label>
+                  <input type="text" id="newProfileNombre" placeholder="Sistemas Microinformáticos y Redes"
+                    style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
+                </div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="adminCreateProfile()">Crear perfil</button>
+                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('adminNewProfileForm').style.display='none'">Cancelar</button>
+              </div>
+              <div id="adminNewProfileStatus" style="font-size:12px;margin-top:6px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PESTAÑA 3: Campos bloqueados ── -->
+      <div class="admin-tab-panel" id="adminTab-locks">
+        <div class="admin-section">
+          <div class="admin-section-head">🎯 Ciclo al que aplican los bloqueos</div>
+          <div class="admin-section-body">
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+              Selecciona el ciclo, activa el 🔒 en cada campo y escribe el valor fijo.
+              Pulsa <strong>Guardar configuración</strong> para aplicar.
+            </p>
+            <select id="adminCicloSelect"
+              style="border:1.5px solid var(--border);border-radius:6px;padding:8px 12px;font-size:13px;width:100%;max-width:420px;margin-bottom:6px"
+              onchange="adminLoadCicloLocks(this.value)">
+              <option value="">— Selecciona un ciclo —</option>
+            </select>
+            <div id="adminCicloStatus" style="font-size:12px;color:var(--text-muted);margin-bottom:16px"></div>
+            <div id="adminLocksBody"></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /admin-panel-body -->
+
+    <!-- Pie — solo guardar, salir con la X -->
+    <div class="admin-panel-foot">
+      <button class="btn btn-primary" onclick="saveAdminConfig()">💾 Guardar configuración</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading-overlay hidden" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Generando documento…</div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar" id="statusBar"></div>
+
+<script>
+// ===================================================
+//  ESTADO DE LA APLICACIÓN
+// ===================================================
+const STORAGE_KEY = 'fp_programaciones_v2';
+const ADMIN_KEY   = 'fp_admin_config_v2';
+const ADMIN_PWD_KEY = 'fp_admin_pwd';
+
+// Config por defecto del admin (qué campos están bloqueados y qué valor tienen)
+const DEFAULT_ADMIN_CONFIG = {
+  password: 'admin1234',
+  lockedFields: {},   // { fieldKey: true/false }
+  lockedValues: {},   // { fieldKey: "valor fijado por admin" }
+  globalValues: {     // Valores comunes predefinidos por admin
+    centro_nombre: 'IES Miguel de Molinos',
+    centro_direccion: 'C/ Gabriel García Márquez, 20 – 50018 Zaragoza',
+    decreto_titulo: 'Real Decreto 127/2014, de 28 de febrero',
+    decreto_aragon: 'ORDEN ECD/841/2024, de 25 de julio',
+    plataforma: 'iesmigueldemolinos.aeducar.es',
+    evaluacion_continua_umbral: '50%',
+    perdida_ec_horas: '27 horas',
+  }
+};
+
+// Definición de todos los campos del formulario (para el admin y el usuario)
+const FIELD_DEFS = [
+  { section: 'intro', label: 'a) Introducción y contextualización', letter: 'a', fields: [
+    { key: 'modulo_nombre',        label: 'Denominación del módulo', type: 'text', placeholder: 'Ej: Instalación y mantenimiento de redes…' },
+    { key: 'modulo_codigo',        label: 'Código del módulo', type: 'text', placeholder: '3016' },
+    { key: 'modulo_horas_sem',     label: 'Horas semanales', type: 'text', placeholder: '6', hint: 'horas_info' },
+    { key: 'modulo_horas',         label: 'Horas totales del módulo', type: 'text', placeholder: '200', onchange: 'calcPerdidaHoras(this.value)', hint: 'horas_info' },
+    { key: 'perdida_ec_horas',     label: 'Horas pérdida evaluación continua (15% calculado)', type: 'computed', placeholder: '—' },
+    { key: 'ciclo',             label: 'Ciclo formativo', type: 'text', placeholder: 'Ej: CFGB Profesional Básico en Informática…' },
+    { key: 'curso',             label: 'Curso académico', type: 'text', placeholder: '2025-2026' },
+    { key: 'docente',           label: 'Nombre del docente', type: 'text', placeholder: 'Nombre y apellidos' },
+    { key: 'decreto_titulo',    label: 'RD Título y ordenación', type: 'textarea', placeholder: 'Ej: Real Decreto 127/2014…', hint: 'normativa' },
+    { key: 'decreto_aragon',    label: 'Normativa Aragón', type: 'textarea', placeholder: 'Ej: ORDEN ECD/841/2024…' },
+    { key: 'centro_nombre',     label: 'Centro educativo', type: 'text', placeholder: 'Ej: IES Miguel de Molinos', hint: 'centrosdocentes' },
+    { key: 'centro_direccion',  label: 'Dirección del centro', type: 'text', placeholder: 'Ej: C/ …' },
+    { key: 'contextualizacion', label: 'Contextualización del centro y módulo', type: 'textarea', tall: true, placeholder: 'Ej: Descripción del barrio, alumnado…' },
+    { key: 'uc_tabla',          label: 'Unidades de competencia / Estándares de Competencia', type: 'textarea',
+      hint: 'uc_info',
+      placeholder: 'Ej: UC1207_1: Realizar operaciones auxiliares de montaje de equipos microinformáticos.' }
+  ]},
+  { section: 'ra', label: 'b) Resultados de aprendizaje', letter: 'b',
+    sectionInfo: {
+      text: 'Puedes consultar los Resultados de Aprendizaje y Criterios de Evaluación oficiales del ciclo en el portal de centros docentes de Aragón. El código del ciclo va en el parámetro <code>codciclo</code> de la URL (ejemplo: <code>IFC201</code>).',
+      link: 'https://centrosdocentes.catedu.es/awc/public/pages/familias/info_ciclo.php?codciclo=IFC201',
+      linkText: 'Ver RAs y CEs del ciclo en centrosdocentes.catedu.es'
+    },
+    fields: [
+    { key: 'ra_lista', label: 'Resultados de aprendizaje', type: 'textarea', tall: true,
+      importTarget: 'ra',
+      placeholder: 'Ej: RA1. …\nRA2. …\nRA3. …' },
+    { key: 'ra_empresa', label: 'RAs susceptibles de adquirirse en empresa', type: 'textarea',
+      placeholder: 'Ej: RA5. … (90% aula, 10% FCT)' },
+    { key: 'ra_justificacion', label: 'Justificación de la dualización', type: 'textarea',
+      placeholder: 'Ej: La monitorización…' },
+    { key: 'criterios_evaluacion', label: 'Criterios de evaluación del módulo', type: 'textarea', tall: true,
+      hint: 'criterios_eval',
+      importTarget: 'ce',
+      placeholder: 'Ej: RA1. ...\n  a) Identifica los elementos…\n  b) Describe las características…\nRA2. ...\n  a) …' },
+  ]},
+  { section: 'secuencia', label: 'c) Secuenciación y unidades didácticas', letter: 'c', fields: [
+    { key: 'secuencia_intro', label: 'Introducción y resumen de unidades didácticas', type: 'textarea', tall: true,
+      placeholder: 'Ej: Texto que explique brevemente cómo se desarrollan las unidades / RA a lo largo del curso.\nIncluir índice general de Unidades Didácticas y Temas con los puntos más importantes.' },
+    { key: 'orientaciones_pedagogicas', label: 'Orientaciones pedagógicas', type: 'textarea', tall: true,
+      placeholder: 'Ej: Este módulo profesional contiene la formación asociada a la función de…' },
+    { key: '_divider_secuencia', label: 'Secuenciación: relación Contenidos, Resultados de Aprendizaje y Criterios de evaluación', type: 'divider' },
+    { key: 'ud_ev1_tabla', label: '1ª Evaluación — Unidades didácticas', type: 'table',
+      columns: ['UD / Contenidos', 'Resultados de Aprendizaje', 'Criterios de Evaluación'],
+      rows: [['','RA1','']] },
+    { key: 'ud_ev2_tabla', label: '2ª Evaluación — Unidades didácticas', type: 'table',
+      columns: ['UD / Contenidos', 'Resultados de Aprendizaje', 'Criterios de Evaluación'],
+      rows: [['','RA2','']] },
+    { key: 'ud_ev3_tabla', label: '3ª Evaluación — Unidades didácticas', type: 'table',
+      columns: ['UD / Contenidos', 'Resultados de Aprendizaje', 'Criterios de Evaluación'],
+      rows: [['','RA3','']] },
+    { key: 'ud_empresa_tabla', label: 'Actividades en empresa / FCT / FEOE', type: 'table',
+      columns: ['Evaluación', 'Contenidos / UD', 'Resultados de Aprendizaje', 'Criterios de Evaluación'],
+      rows: [['2ª','','RA5','']] },
+  ]},
+  { section: 'metodologia', label: 'd) Principios metodológicos', letter: 'd', fields: [
+    { key: 'plataforma', label: 'URL Plataforma educativa (Moodle, Aeducar, Classroom…)', type: 'text', placeholder: 'Ej: iesmigueldemolinos.aeducar.es' },
+    { key: 'metodologia', label: 'Descripción metodológica', type: 'textarea', tall: true,
+      placeholder: 'Ej: Modelo constructivista, ABP, trabajo colaborativo…' },
+  ]},
+  { section: 'evaluacion_inicial', label: 'e) Evaluación inicial', letter: 'e', fields: [
+    { key: 'eval_inicial', label: 'Descripción y criterios de la evaluación inicial', type: 'textarea', tall: true,
+      placeholder: 'Ej: Al inicio de curso se realizará…' },
+  ]},
+  { section: 'procedimientos', label: 'f) Procedimientos e instrumentos de evaluación', letter: 'f', fields: [
+    { key: 'proc_eval', label: 'Procedimientos de evaluación', type: 'textarea', tall: true,
+      placeholder: 'Ej: Tareas, exámenes, FCT…' },
+    { key: 'calendario_tabla', label: 'Calendario de evaluaciones', type: 'table',
+      columns: ['Evaluación', 'Fecha orientativa'],
+      rows: [['1ª Evaluación',''],['2ª Evaluación',''],['3ª Evaluación',''],['Junio 1 (J1)',''],['Junio 2 (J2)','']] },
+    { key: 'vinculacion_instrumentos', label: 'Vinculación entre los instrumentos de evaluación y criterios de evaluación', type: 'textarea', tall: true,
+      placeholder: 'Ej: Describir cómo se vinculan los instrumentos (exámenes, tareas, prácticas) con cada RA y sus CE…' },
+    { key: 'perdida_ec_texto', label: 'Alumnado que pierde el derecho a la evaluación continua', type: 'textarea',
+      placeholder: 'Ej: En el caso del alumnado que pierde el derecho a la evaluación continua, la calificación se obtendrá mediante una prueba final…' },
+    { key: 'criterios_calificacion', label: 'Criterios de Calificación', type: 'textarea', tall: true,
+      placeholder: 'Ej: Para el cálculo de calificaciones se contemplarán al menos 2 decimales…' },
+    { key: 'tabla_calificacion_ev', label: 'Tabla de calificación por evaluación (RA, % y ponderación de instrumentos)', type: 'calificacion_ev' },
+    { key: 'criterios_cal_continua', label: 'Criterios de Calificación — Evaluación continua', type: 'textarea', tall: true,
+      placeholder: 'Ej: Para superar el módulo el alumno/a debe alcanzar una valoración positiva de todos los RA…' },
+    { key: 'criterios_cal_final', label: 'Criterios de Calificación — Evaluación final (J1, J2)', type: 'textarea', tall: true,
+      placeholder: 'Ej: En las evaluaciones finales se podrá compensar un único RA cuya calificación sea ≥4…' },
+    { key: '_divider_ponderacion', label: 'Ponderación de RAs sobre nota final del módulo (%)', type: 'divider' },
+    { key: 'ponderacion', label: 'Ponderación de RAs sobre nota final (%)', type: 'ra_pct_dynamic' },
+    { key: 'ponderacion_notas', label: 'Notas adicionales sobre la ponderación', type: 'textarea',
+      placeholder: 'Ej: La calificación final se redondea al entero más cercano cuando es ≥ 5,0…' },
+  ]},
+  { section: 'recuperacion', label: 'g) Actividades de recuperación y refuerzo', letter: 'g', fields: [
+    { key: 'recuperacion', label: 'Plan de recuperación y refuerzo', type: 'textarea', tall: true,
+      placeholder: 'Ej: Para el alumnado que tenga que presentarse a J2…' },
+  ]},
+  { section: 'compensacion', label: 'h) Compensación de Resultados de Aprendizaje', letter: 'h', fields: [
+    { key: 'compensacion', label: 'Criterios de compensación entre RAs', type: 'textarea',
+      placeholder: 'Ej: En J1/J2 se podrá compensar un único RA con nota ≥4…' },
+  ]},
+  { section: 'desdobles', label: 'i) Plan de desdobles', letter: 'i', fields: [
+    { key: 'desdobles', label: 'Plan de desdobles', type: 'textarea', placeholder: 'No procede.' },
+  ]},
+  { section: 'materiales', label: 'j) Materiales y recursos didácticos', letter: 'j', fields: [
+    { key: 'materiales', label: 'Materiales y recursos', type: 'textarea', tall: true,
+      placeholder: 'Ej: Ordenadores con conexión, Moodle, presentaciones…' },
+  ]},
+  { section: 'actividades', label: 'k) Actividades complementarias y extraescolares', letter: 'k', fields: [
+    { key: 'actividades_ext', label: 'Actividades complementarias', type: 'textarea',
+      placeholder: 'Ej: A la fecha no se plantea ninguna actividad…' },
+  ]},
+  { section: 'bilingue', label: 'l) Medidas en itinerarios bilingües', letter: 'l', fields: [
+    { key: 'bilingue', label: 'Medidas bilingües', type: 'textarea', placeholder: 'No procede.' },
+  ]},
+  { section: 'seguimiento', label: 'm) Seguimiento y plan de mejora', letter: 'm', fields: [
+    { key: 'seguimiento', label: 'Mecanismos de seguimiento y mejora', type: 'textarea', tall: true,
+      placeholder: 'Ej: Reuniones periódicas del equipo docente…' },
+  ]},
+  { section: 'contingencia', label: 'n) Plan de contingencia', letter: 'n', fields: [
+    { key: 'contingencia', label: 'Plan de contingencia', type: 'textarea', tall: true,
+      placeholder: 'Ej: Ante circunstancias excepcionales…' },
+  ]},
+  { section: 'historial', label: 'ñ) Historial de modificaciones', letter: 'ñ', fields: [
+    { key: 'historial', label: 'Historial de modificaciones de la programación didáctica', type: 'textarea', tall: true,
+      placeholder: 'Ej: X Edición enero 2026. Adaptación Decreto consolidado\n14/03/2026' },
+  ]},
+];
+
+// ===================================================
+//  ESTADO REACTIVO
+// ===================================================
+let state = {
+  modules: {},      // { id: { meta: {}, data: {} } }
+  activeId: null,
+};
+let adminConfig = { ...DEFAULT_ADMIN_CONFIG };
+let adminLoggedIn = false;    // true cuando el usuario es admin
+let collapsedSections = {};
+
+// Usuario autenticado actual (viene del servidor)
+let currentUser = null;       // { id, username, nombre, role, cicloId, cicloCod, cicloNombre }
+
+// ===================================================
+//  CAPA DE PERSISTENCIA — API REST
+//  Sustituye localStorage por llamadas al backend.
+//  saveState()    → PUT /api/modules/:id
+//  loadState()    → GET /api/modules (lista) + GET /api/modules/:id (detalle)
+// ===================================================
+
+let _saveDebounceTimer = null;
+let _saveStatus = 'idle';
+
+function setSaveIndicator(status, msg) {
+  _saveStatus = status;
+  const el = document.getElementById('saveIndicator');
+  if (!el) return;
+  const map = {
+    idle:   { cls: 'idle',   txt: '' },
+    saving: { cls: 'saving', txt: '⏳ Guardando…' },
+    saved:  { cls: 'saved',  txt: '✅ Guardado' },
+    error:  { cls: 'error',  txt: '⚠️ Error al guardar' },
+  };
+  const s = map[status] || map.idle;
+  el.className = 'save-indicator ' + s.cls;
+  el.textContent = msg || s.txt;
+  if (status === 'saved') {
+    setTimeout(() => { if (_saveStatus === 'saved') setSaveIndicator('idle'); }, 3000);
+  }
+}
+
+// Guarda el módulo activo en el servidor
+async function saveState() {
+  if (!state.activeId) return;
+  setSaveIndicator('saving');
+  try {
+    const mod = state.modules[state.activeId];
+    await Modules.update(state.activeId, {
+      titulo: mod.meta.name,
+      codigo: mod.meta.code,
+      data:   mod.data,
+    });
+    setSaveIndicator('saved');
+  } catch(e) {
+    setSaveIndicator('error');
+    console.error('saveState error:', e);
+  }
+}
+
+function saveStateLazy() {
+  setSaveIndicator('saving');
+  clearTimeout(_saveDebounceTimer);
+  _saveDebounceTimer = setTimeout(() => saveState(), 1500);
+}
+
+// Carga la lista de módulos desde el servidor al arrancar
+async function loadState() {
+  try {
+    const { modules } = await Modules.list();
+    state.modules = {};
+    modules.forEach(m => {
+      state.modules[m.id] = {
+        _loaded: false,
+        // Admin nunca es readOnly; docente solo es readOnly si la programación no es suya
+        readOnly: currentUser?.role !== 'admin' && m.is_own === 0,
+        meta: {
+          name:          m.titulo,
+          code:          m.codigo,
+          course:        '',
+          cycle:         m.cicloNombre || '',
+          cicloNombre:   m.cicloNombre || '',
+          docenteNombre: m.docenteNombre || m.username || '',
+        },
+        data: {}
+      };
+    });
+  } catch(e) {
+    console.error('loadState error:', e);
+  }
+}
+
+// Carga los datos completos de un módulo (solo cuando se abre)
+async function loadModuleData(id) {
+  try {
+    const { module } = await Modules.get(id);
+    // Admin nunca es readOnly
+    const readOnly = currentUser?.role !== 'admin' && !!module.readOnly;
+    state.modules[id] = {
+      _loaded:   true,
+      readOnly,
+      lockedKeys: module.lockedKeys || [],
+      meta: {
+        name:          module.titulo,
+        code:          module.codigo,
+        course:        module.data?.curso || '',
+        cycle:         module.cicloNombre || module.data?.ciclo || '',
+        cicloNombre:   module.cicloNombre || '',
+        docenteNombre: module.docenteNombre || module.username || '',
+      },
+      data: module.data || {},
+    };
+    // Sincronizar adminConfig con los campos bloqueados del perfil del ciclo
+    if (module.lockedKeys?.length) {
+      module.lockedKeys.forEach(k => {
+        adminConfig.lockedFields[k] = true;
+        if (module.data[k] !== undefined) adminConfig.lockedValues[k] = module.data[k];
+      });
+    }
+    return state.modules[id];
+  } catch(e) {
+    console.error('loadModuleData error:', e);
+    return null;
+  }
+}
+
+// saveAdminState — guarda el perfil de ciclo activo en el servidor (solo admin)
+async function saveAdminState() {
+  // Los perfiles de ciclo se gestionan desde el panel admin de usuarios
+  // Esta función actualiza el localStorage solo para la sesión del admin
+  // (contraseña, valores globales no asociados a ciclo)
+  localStorage.setItem('fp_admin_config_local', JSON.stringify({
+    globalValues: adminConfig.globalValues
+  }));
+}
+
+function autoSave() {
+  saveState();
+  showStatus('✔ Guardado correctamente');
+}
+
+// ===================================================
+//  MENÚ 🗄 DATOS
+// ===================================================
+
+function toggleDataMenu(e) {
+  e.stopPropagation();
+  document.getElementById('dataDropdown').classList.toggle('open');
+}
+document.addEventListener('click', () => {
+  document.getElementById('dataDropdown')?.classList.remove('open');
+});
+
+function ddSaveNow() {
+  document.getElementById('dataDropdown').classList.remove('open');
+  saveState();
+  showStatus('✔ Guardado en el servidor');
+}
+
+function ddClearData() {
+  document.getElementById('dataDropdown').classList.remove('open');
+  if (!confirm('¿Seguro que quieres borrar TODOS tus módulos del servidor?\n\nEsta acción no se puede deshacer.')) return;
+  // Borrar todos los módulos del usuario actual
+  Promise.all(Object.keys(state.modules).map(id => Modules.delete(id)))
+    .then(async () => {
+      state = { activeId: null, modules: {} };
+      renderModulesList();
+      renderMainContent();
+      showStatus('🗑 Datos borrados del servidor');
+    })
+    .catch(e => showStatus('Error al borrar: ' + e.message, 'error'));
+}
+
+function ddExportBackup() {
+  document.getElementById('dataDropdown').classList.remove('open');
+  const backup = {
+    version: 2,
+    exportDate: new Date().toISOString(),
+    data: state
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `backup_programaciones_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showStatus('📦 Copia de seguridad exportada');
+}
+
+function ddRestoreBackup() {
+  document.getElementById('dataDropdown').classList.remove('open');
+  document.getElementById('restoreBackupInput').value = '';
+  document.getElementById('restoreBackupInput').click();
+}
+
+async function handleRestoreBackup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      const modules = parsed.version === 2
+        ? Object.values(parsed.data?.modules || {})
+        : Object.values(parsed.modules || {});
+      if (!modules.length) throw new Error('No se encontraron módulos en el backup.');
+      if (!confirm(`Se restaurarán ${modules.length} módulo(s). ¿Continuar?`)) return;
+      showStatus('Restaurando…');
+      for (const mod of modules) {
+        if (!mod.meta?.name) continue;
+        await Modules.create({
+          titulo:  mod.meta.name,
+          codigo:  mod.meta.code || '',
+          data:    mod.data || {},
+        });
+      }
+      await loadState();
+      renderModulesList();
+      renderMainContent();
+      showStatus(`✔ Restaurados ${modules.length} módulos`);
+    } catch(err) { alert('Error al restaurar: ' + err.message); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function ddExportModuleJSON() {
+  document.getElementById('dataDropdown').classList.remove('open');
+  exportJSON();
+}
+function ddImportModuleJSON() {
+  document.getElementById('dataDropdown').classList.remove('open');
+  document.getElementById('ddImportModuleInput').value = '';
+  document.getElementById('ddImportModuleInput').click();
+}
+
+// ===================================================
+//  EXPORTAR / IMPORTAR JSON (módulo individual)
+// ===================================================
+function exportJSON() {
+  if (!state.activeId) { showStatus('Primero selecciona un módulo', 'error'); return; }
+  const mod  = state.modules[state.activeId];
+  const blob = new Blob([JSON.stringify(mod, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `programacion_${mod.meta.code || 'modulo'}_${mod.meta.course || ''}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data?.meta && data?.data) {
+        const { module } = await Modules.create({
+          titulo: data.meta.name,
+          codigo: data.meta.code || '',
+          data:   data.data,
+        });
+        await loadState();
+        renderModulesList();
+        await selectModule(module.id);
+        showStatus('✔ JSON importado correctamente');
+      }
+    } catch(err) { alert('Error al leer el JSON: ' + err.message); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ===================================================
+//  UTILIDADES
+// ===================================================
+function genId() { return 'mod_' + Date.now() + '_' + Math.random().toString(36).slice(2,6); }
+
+function showStatus(msg, type='success') {
+  const bar = document.getElementById('statusBar');
+  bar.textContent = msg;
+  bar.className = 'status-bar show ' + type;
+  setTimeout(() => bar.className = 'status-bar', 3000);
+}
+
+function showLoading(txt='Generando documento…') {
+  document.getElementById('loadingText').textContent = txt;
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.add('hidden');
+}
+
+// ===================================================
+//  SIDEBAR - MÓDULOS
+// ===================================================
+function renderModulesList() {
+  const list = document.getElementById('modulesList');
+  const ids  = Object.keys(state.modules);
+  if (!ids.length) {
+    list.innerHTML = '<p style="padding:16px;font-size:12px;color:var(--text-muted);text-align:center">No hay módulos guardados</p>';
+    return;
+  }
+  list.innerHTML = ids.map(id => {
+    const m      = state.modules[id];
+    const active = id == state.activeId ? 'active' : '';
+    const roIcon = m.readOnly ? ' 👁' : '';
+    const ciclo  = m.meta.cicloNombre || m.meta.cycle || '';
+    const docente = m.meta.docenteNombre || '';
+    const codeCourse = [m.meta.code, m.meta.course].filter(Boolean).join(' · ');
+    return `<div class="module-item ${active}" onclick="selectModule(${id})">
+      <div style="flex:1;min-width:0">
+        <div class="module-name">${escHtml(m.meta.name || 'Sin nombre')}${roIcon}</div>
+        ${ciclo   ? `<div class="module-code" style="color:var(--navy);font-weight:500">${escHtml(ciclo)}</div>` : ''}
+        ${codeCourse ? `<div class="module-code">${escHtml(codeCourse)}</div>` : ''}
+        ${docente ? `<div class="module-code" style="font-style:italic">${escHtml(docente)}</div>` : ''}
+      </div>
+      <div class="module-item-actions">
+        ${!m.readOnly ? `<button class="module-action-btn" onclick="duplicateModule(event,${id})" title="Duplicar">⎘</button>` : ''}
+        <button class="module-action-btn" onclick="exportModuleFile(event,${id})" title="Exportar .json">↓</button>
+        ${!m.readOnly ? `<button class="module-delete-btn" onclick="deleteModule(event,${id})" title="Eliminar">✕</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function selectModule(id) {
+  state.activeId = id;
+  renderModulesList();
+  if (!state.modules[id]?._loaded) {
+    showLoading('Cargando programación…');
+    await loadModuleData(id);
+    hideLoading();
+  }
+  renderMainContent();
+}
+
+async function deleteModule(e, id) {
+  e.stopPropagation();
+  if (!confirm('¿Eliminar este módulo? Esta acción no se puede deshacer.')) return;
+  try {
+    await Modules.delete(id);
+    delete state.modules[id];
+    if (state.activeId == id) state.activeId = null;
+    renderModulesList();
+    renderMainContent();
+    showStatus('🗑 Módulo eliminado');
+  } catch(err) { showStatus('Error al eliminar: ' + err.message, 'error'); }
+}
+
+async function duplicateModule(e, id) {
+  e.stopPropagation();
+  if (!state.modules[id]?._loaded) await loadModuleData(id);
+  const src  = state.modules[id];
+  const name = (src.meta.name || '') + ' (copia)';
+  const data = JSON.parse(JSON.stringify(src.data || {}));
+  data.modulo_nombre = name;
+  try {
+    const { module } = await Modules.create({ titulo: name, codigo: src.meta.code || '', data });
+    await loadState();
+    renderModulesList();
+    await selectModule(module.id);
+    showStatus('✔ Módulo duplicado correctamente');
+  } catch(err) { showStatus('Error al duplicar: ' + err.message, 'error'); }
+}
+
+function exportModuleFile(e, id) {
+  e.stopPropagation();
+  const mod  = state.modules[id];
+  if (!mod) return;
+  const payload  = JSON.stringify({ version: 1, module: mod }, null, 2);
+  const blob     = new Blob([payload], { type: 'application/json' });
+  const url      = URL.createObjectURL(blob);
+  const a        = document.createElement('a');
+  const safeName = (mod.meta.name || 'modulo').replace(/[^a-zA-Z0-9_\-]/g,'_').toLowerCase();
+  a.href         = url;
+  a.download     = `pd_${safeName}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showStatus('✔ Módulo exportado como archivo .json');
+}
+
+function importModuleFile() {
+  document.getElementById('importFileInput').value = '';
+  document.getElementById('importFileInput').click();
+}
+
+async function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(ev) {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      let mod = (parsed.version && parsed.module) ? parsed.module
+              : (parsed.meta && parsed.data)       ? parsed
+              : null;
+      if (!mod?.meta) throw new Error('Formato no reconocido');
+      const existingNames = Object.values(state.modules).map(m => m.meta.name);
+      let name = mod.meta.name || 'Módulo importado';
+      if (existingNames.includes(name)) name += ' (importado)';
+      const { module } = await Modules.create({ titulo: name, codigo: mod.meta.code || '', data: mod.data || {} });
+      await loadState();
+      renderModulesList();
+      await selectModule(module.id);
+      showStatus('✔ Módulo importado correctamente');
+    } catch(err) { alert('Error al importar: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ===================================================
+//  MODAL NUEVO MÓDULO
+// ===================================================
+function openNewModuleModal() {
+  document.getElementById('newModuleModal').classList.remove('hidden');
+  document.getElementById('newModuleName').focus();
+}
+function closeNewModuleModal() {
+  document.getElementById('newModuleModal').classList.add('hidden');
+  window._pendingCateduRaList = null;
+  document.getElementById('newModCateduPreview').style.display = 'none';
+}
+
+async function createModule() {
+  const name    = document.getElementById('newModuleName').value.trim();
+  const code    = document.getElementById('newModuleCode').value.trim();
+  const horas      = document.getElementById('newModuleHoras').value.trim();
+  const horasSem   = document.getElementById('newModuleHorasSem').value.trim();
+  const course  = document.getElementById('newModuleCourse').value.trim();
+  const cycle   = document.getElementById('newModuleCycle').value.trim();
+  const docente = currentUser?.nombre || currentUser?.username || '';
+  if (!name) { alert('El nombre del módulo es obligatorio'); return; }
+
+  const data = {};
+  Object.entries(adminConfig.globalValues || {}).forEach(([k,v]) => { data[k] = v; });
+  data.modulo_nombre = name;
+  data.modulo_codigo = code;
+  data.modulo_horas     = horas;
+  data.modulo_horas_sem = horasSem;
+  data.curso   = course;
+  data.ciclo   = cycle;
+  data.docente = docente || currentUser?.nombre || '';
+
+  // RAs/CEs importados desde CATEDU
+  console.log('[createModule] _pendingCateduRaList:', window._pendingCateduRaList?.length ?? 'null/undefined');
+  if (window._pendingCateduRaList?.length) {
+    data.ra_lista             = raListToHtml(window._pendingCateduRaList, false);
+    data.criterios_evaluacion = raListToHtml(window._pendingCateduRaList, true);
+    console.log('[createModule] ra_lista length:', data.ra_lista?.length, 'criterios length:', data.criterios_evaluacion?.length);
+    window._pendingCateduRaList = null;
+  }
+
+  try {
+    const { module } = await Modules.create({ titulo: name, codigo: code, data });
+    closeNewModuleModal();
+    ['newModuleName','newModuleCode','newModuleHoras','newModuleHorasSem','newModuleCourse','newModuleCycle']
+      .forEach(fid => document.getElementById(fid).value = '');
+    document.getElementById('newModCateduPreview').style.display = 'none';
+
+    // Guardar el objeto completo que ya conocemos (con los datos importados)
+    const fullModule = {
+      _loaded:   true,
+      readOnly:  false,
+      lockedKeys: [],
+      meta: {
+        name,
+        code,
+        course,
+        cycle,
+        cicloNombre:   cycle,
+        docenteNombre: currentUser?.nombre || currentUser?.username || '',
+      },
+      data,
+    };
+
+    // Recargar lista del sidebar, luego restaurar el módulo completo
+    await loadState();
+    console.log('[createModule] module.id:', module.id, typeof module.id);
+    console.log('[createModule] keys after loadState:', JSON.stringify(Object.keys(state.modules)));
+    state.modules[module.id] = fullModule;
+    console.log('[createModule] ra_lista exists:', !!fullModule.data.ra_lista, 'state.modules[module.id].data.ra_lista exists:', !!state.modules[module.id]?.data?.ra_lista);
+    state.activeId = module.id;
+    console.log('[createModule] state.activeId:', state.activeId, 'module found:', !!state.modules[state.activeId]);
+
+    renderModulesList();
+    renderMainContent();
+    showStatus('✔ Programación creada');
+  } catch(err) {
+    showStatus('Error al crear: ' + err.message, 'error');
+  }
+}
+
+// ===================================================
+//  MAIN CONTENT - FORMULARIO
+// ===================================================
+function renderMainContent() {
+  const main = document.getElementById('mainContent');
+  console.log('[renderMainContent] activeId:', state.activeId, 'module:', !!state.modules[state.activeId], 'ra_lista:', !!state.modules[state.activeId]?.data?.ra_lista);
+  if (!state.activeId || !state.modules[state.activeId]) {
+    main.innerHTML = `<div class="empty-state">
+      <div class="icon">📋</div>
+      <h2>Selecciona o crea un módulo</h2>
+      <p>Usa el panel lateral para crear una nueva programación didáctica o abrir una guardada.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+        <button class="btn btn-primary" onclick="openNewModuleModal()">+ Crear nueva programación</button>
+        <button class="btn btn-ghost" onclick="importModuleFile()">📂 Importar desde archivo</button>
+      </div>
+    </div>`;
+    return;
+  }
+
+  const mod      = state.modules[state.activeId];
+  const data     = mod.data || {};
+  const isReadOnly = !!(mod.readOnly);  // docente viendo programación ajena
+
+  let html = `<div class="module-toolbar">
+    <div class="module-toolbar-left">
+      <h1>${mod.meta.name || 'Sin título'}</h1>
+      <div class="module-meta">Código: ${mod.meta.code || '—'} · Curso ${mod.meta.course || '—'} · ${mod.meta.cycle || ''}</div>
+    </div>
+    <div class="toolbar-actions">
+      ${isReadOnly ? '' : `<button class="btn btn-outline btn-sm" style="background:var(--navy);color:white" onclick="openPreview()">👁 Previsualizar</button>`}
+      ${isReadOnly ? `<button class="btn btn-outline btn-sm" style="background:var(--navy);color:white" onclick="openPreview()">👁 Previsualizar</button>` : ''}
+      <button class="btn btn-success btn-sm" onclick="exportWord()">📄 Exportar Word</button>
+      <button class="btn btn-primary btn-sm" onclick="exportPDF()">📥 Exportar PDF</button>
+    </div>
+  </div>`;
+
+  // Banner de solo lectura
+  if (isReadOnly) {
+    html += `<div style="background:#fff8e1;border:1.5px solid #f0c040;border-radius:8px;
+      padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px">
+      <span style="font-size:18px">👁</span>
+      <span><strong>Modo solo lectura.</strong> Esta programación pertenece a otro docente de tu ciclo. Puedes consultarla pero no modificarla.</span>
+    </div>`;
+  }
+
+  html += `<div class="form-sections" id="formSections">`;
+
+  FIELD_DEFS.forEach(section => {
+    const collapsed = collapsedSections[section.section] ? 'collapsed' : '';
+    const bodyHidden = collapsedSections[section.section] ? 'hidden' : '';
+    html += `<div class="form-section">
+      <div class="section-header ${collapsed}" onclick="toggleSection('${section.section}')">
+        <h3><span class="section-letter">${section.letter}</span>${section.label}</h3>
+        <span class="section-chevron">▼</span>
+      </div>
+      <div class="section-body ${bodyHidden}">`;
+
+    if (section.sectionInfo) {
+      const info = section.sectionInfo;
+      html += `<div class="section-info-box">
+        <div class="info-icon">ℹ️</div>
+        <div class="info-content">
+          <div class="info-text">${info.text}</div>
+          <a href="${info.link}" target="_blank" class="info-link">
+            🔗 ${info.linkText}
+          </a>
+        </div>
+      </div>`;
+    }
+
+    section.fields.forEach(field => {
+      html += renderField(field, data, isReadOnly);
+    });
+
+    html += `</div></div>`;
+  });
+
+  html += `</div>`;
+  main.innerHTML = html;
+
+  // Poblar los rich editors Y los inputs de texto DESPUÉS de que el DOM esté listo
+  // (setTimeout 0 evita que extensiones del navegador como Bitwarden vacíen los campos)
+  setTimeout(() => {
+    FIELD_DEFS.forEach(section => {
+      section.fields.forEach(field => {
+        if (field.type === 'textarea') {
+          const locked = isReadOnly || !!(adminConfig.lockedFields?.[field.key]);
+          if (locked) return;
+          const el = document.getElementById('rte_' + field.key);
+          if (!el) return;
+          const val = adminConfig.lockedValues?.[field.key] || data[field.key] || '';
+          if (val) el.innerHTML = val;
+        } else if (field.type === 'text') {
+          const locked = isReadOnly || !!(adminConfig.lockedFields?.[field.key]);
+          if (locked) return; // los bloqueados tienen readonly en el HTML
+          const el = document.getElementById('field_text_' + field.key);
+          if (!el) return;
+          const val = adminConfig.lockedValues?.[field.key] || data[field.key] || adminConfig.globalValues?.[field.key] || '';
+          if (val) el.value = val;
+        }
+      });
+    });
+  }, 0);
+}
+
+function toggleSection(sectionId) {
+  collapsedSections[sectionId] = !collapsedSections[sectionId];
+  const sections = document.querySelectorAll('.form-section');
+  FIELD_DEFS.forEach((sec, i) => {
+    if (sec.section === sectionId) {
+      const header = sections[i].querySelector('.section-header');
+      const body   = sections[i].querySelector('.section-body');
+      if (collapsedSections[sectionId]) {
+        header.classList.add('collapsed');
+        body.classList.add('hidden');
+      } else {
+        header.classList.remove('collapsed');
+        body.classList.remove('hidden');
+      }
+    }
+  });
+}
+
+function renderField(field, data, forceReadOnly = false) {
+  // Un campo está bloqueado si: el admin lo fijó para este ciclo, O la programación es de solo lectura
+  const locked = forceReadOnly || !!(adminConfig.lockedFields && adminConfig.lockedFields[field.key]);
+  // Si está bloqueado y el admin fijó un valor, ese tiene prioridad sobre lo guardado en el módulo
+  const lockedAdminVal = locked && adminConfig.lockedValues && adminConfig.lockedValues[field.key];
+  const value = lockedAdminVal !== undefined && lockedAdminVal !== ''
+    ? lockedAdminVal
+    : (data[field.key] !== undefined ? data[field.key]
+      : (adminConfig.globalValues && adminConfig.globalValues[field.key]) || '');
+
+  let innerHtml = '';
+
+  if (field.type === 'divider') {
+    return `<div class="field-divider">
+      <span class="field-divider-label">${field.label}</span>
+      <div class="field-divider-line"></div>
+    </div>`;
+  } else if (field.type === 'calificacion_ev') {
+    innerHtml = renderCalEv(field, data, locked);
+  } else if (field.type === 'table') {
+    innerHtml = renderTableField(field, data, locked);
+  } else if (field.type === 'ra_pct') {
+    innerHtml = renderRaPct(field, data, locked);
+  } else if (field.type === 'ra_pct_dynamic') {
+    innerHtml = renderRaPctDynamic(field, data, locked);
+  } else if (field.type === 'computed') {
+    // Campo calculado: solo lectura, se recalcula al cambiar horas
+    const computed = computeField(field.key, data);
+    innerHtml = `<input type="text" readonly
+      id="field_${field.key}"
+      value="${escHtml(computed)}"
+      style="background:var(--cream-dark);border:1.5px solid var(--border);border-radius:6px;
+             padding:10px 14px;width:100%;font-family:'DM Sans',sans-serif;font-size:14px;
+             color:var(--text-muted);cursor:default;"
+      placeholder="${field.placeholder||''}">`;
+  } else if (field.type === 'textarea') {
+    const tall = field.tall ? 'tall' : '';
+    const lockedCls = locked ? 'locked' : '';
+    if (locked) {
+      innerHtml = `<div class="rich-editor-wrap locked">
+        <div class="rich-content ${tall} locked" style="min-height:80px">${value || ''}</div>
+      </div>`;
+    } else {
+      const fieldKey = field.key;
+      innerHtml = `<div class="rich-editor-wrap" id="wrap_${fieldKey}">
+        <div class="rich-toolbar" id="toolbar_${fieldKey}">
+          <button onmousedown="event.preventDefault();rte('bold','${fieldKey}')" title="Negrita"><b>B</b></button>
+          <button onmousedown="event.preventDefault();rte('italic','${fieldKey}')" title="Cursiva"><i>I</i></button>
+          <button onmousedown="event.preventDefault();rte('underline','${fieldKey}')" title="Subrayado" style="text-decoration:underline">U</button>
+          <div class="toolbar-sep"></div>
+          <button onmousedown="event.preventDefault();rte('insertUnorderedList','${fieldKey}')" title="Lista">≡</button>
+          <button onmousedown="event.preventDefault();rte('insertOrderedList','${fieldKey}')" title="Lista numerada">1.</button>
+          <button onmousedown="event.preventDefault();insertChecklist('${fieldKey}')" title="Checklist">☑</button>
+          <div class="toolbar-sep"></div>
+          <button onmousedown="event.preventDefault();rte('indent','${fieldKey}')" title="Indentar">→</button>
+          <button onmousedown="event.preventDefault();rte('outdent','${fieldKey}')" title="Deshindentar">←</button>
+          <div class="toolbar-sep"></div>
+          <button onmousedown="event.preventDefault();rte('removeFormat','${fieldKey}')" title="Quitar formato" style="font-size:11px;font-family:sans-serif">✕</button>
+        </div>
+        <div class="rich-content ${tall}"
+          id="rte_${fieldKey}"
+          contenteditable="true"
+          data-key="${fieldKey}"
+          data-placeholder="${(field.placeholder||'').replace(/'/g,'&#39;')}"
+          oninput="rteUpdate('${fieldKey}')"
+          onkeydown="rteKeyDown(event,'${fieldKey}')"
+          onpaste="rtePaste(event,'${fieldKey}')"
+        ></div>
+      </div>`;
+    }
+  } else {
+    const extraOnchange = field.onchange ? ` ${field.onchange}` : '';
+    const lockedAttr = locked
+      ? 'readonly class="locked"'
+      : `onchange="updateField('${field.key}', this.value);${extraOnchange}"`;
+    const lockedCls  = locked ? 'locked' : '';
+    // Los inputs bloqueados muestran el valor directamente (no hay extensión que los toque)
+    // Los editables se rellenan vía setTimeout para evitar que Bitwarden los vacíe
+    const displayVal = locked ? escHtml(value) : '';
+    innerHtml = `<input type="text" id="field_text_${field.key}" class="${lockedCls}" ${lockedAttr} value="${displayVal}" placeholder="${field.placeholder||''}">`;
+  }
+
+  const lockBadge = locked ? '<span class="locked-badge">BLOQUEADO</span>' : '';
+  const importBtn = (!locked && field.importTarget)
+    ? `<button class="btn btn-sm" onclick="openImportModal('${field.importTarget}')"
+        style="background:#1a6fad;color:white;font-size:11px;padding:3px 10px;margin-left:8px">
+        📥 Importar desde CATEDU
+      </button>`
+    : '';
+
+  // Cuadros de información asociados a campos concretos
+  const HINTS = {
+    centrosdocentes: {
+      text: 'Puedes consultar el nombre, dirección y datos oficiales del centro en el portal de centros docentes de Aragón.',
+      link: 'https://centrosdocentes.catedu.es/ee/',
+      linkText: 'Consultar información del centro — centrosdocentes.catedu.es/ee/'
+    },
+    normativa: {
+      text: 'Puedes consultar normativa y legislación vigente (títulos, currículos, ordenación de FP) en la web de Educaragon.',
+      link: 'https://educa.aragon.es/web/guest/curr%C3%ADculos-y-legislaci%C3%B3n',
+      linkText: 'Currículos y legislación — educa.aragon.es'
+    },
+    uc_info: {
+      text: 'Encuentra las competencias que puedes acreditar en <a href="https://centrosdocentes.catedu.es/awc/public/competencias/index.php" target="_blank" class="info-link" style="font-size:13px">centrosdocentes.catedu.es — Competencias</a> y en el Real Decreto 532/2025, de 24 de junio en <a href="https://www.boe.es/buscar/doc.php?id=BOE-A-2025-13147" target="_blank" class="info-link" style="font-size:13px">BOE-A-2025-13147</a>.',
+      link: null,
+      linkText: null
+    },
+    criterios_eval: {
+      text: 'Pega aquí los Resultados de Aprendizaje y sus Criterios de Evaluación (CEs) tal como aparecen en la normativa del título. Puedes consultarlos en el portal de centros docentes de Aragón.',
+      link: 'https://centrosdocentes.catedu.es/awc/public/pages/familias/info_ciclo.php?codciclo=IFC201',
+      linkText: 'Ver RAs y CEs del ciclo en centrosdocentes.catedu.es'
+    },
+    horas_info: {
+      text: 'Puedes consultar las horas del módulo en la ORDEN ECD/842/2024 (currículo del ciclo para Aragón).',
+      link: 'https://todofp.es/dam/jcr:655ceb57-eee8-47da-9fd6-f3d6e52f8fed/aragon-brscgi-gm.pdf',
+      linkText: 'ORDEN ECD/842/2024 — Ver currículo Aragón (PDF)'
+    },
+  };
+
+  let hintHtml = '';
+  if (field.hint && HINTS[field.hint]) {
+    const h = HINTS[field.hint];
+    hintHtml = `<div class="section-info-box">
+      <div class="info-icon">ℹ️</div>
+      <div class="info-content">
+        <div class="info-text">${h.text}</div>
+        ${h.link ? `<a href="${h.link}" target="_blank" class="info-link">🔗 ${h.linkText}</a>` : ''}
+      </div>
+    </div>`;
+  }
+
+  return `<div class="field">
+    <label class="field-label" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">${field.label} ${lockBadge}${importBtn}</label>
+    ${hintHtml}
+    ${innerHtml}
+  </div>`;
+}
+
+function renderTableField(field, data, locked) {
+  const rows = (data[field.key] && data[field.key].length) ? data[field.key] : field.rows;
+  const cols = field.columns;
+  const lockedCls = locked ? 'locked-cell' : '';
+  const lockedAttr = locked ? 'readonly' : '';
+
+  let html = `<div class="table-container">
+    <table class="editable-table" data-field="${field.key}">
+      <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}<th style="width:32px"></th></tr></thead>
+      <tbody id="tbody_${field.key}">`;
+
+  rows.forEach((row, ri) => {
+    html += `<tr>${cols.map((c,ci)=>`<td class="${lockedCls}"><textarea ${lockedAttr} rows="2"
+      onchange="updateTableCell('${field.key}',${ri},${ci},this.value)"
+      >${escHtml(row[ci]||'')}</textarea></td>`).join('')}
+      <td style="text-align:center;vertical-align:middle">
+        ${!locked ? `<button onclick="removeTableRow('${field.key}',${ri})" style="background:none;border:none;cursor:pointer;color:#999;font-size:16px" title="Eliminar fila">✕</button>` : ''}
+      </td>
+    </tr>`;
+  });
+
+  html += `</tbody></table>`;
+  if (!locked) {
+    html += `<button class="table-add-row" onclick="addTableRow('${field.key}',${cols.length})">+ Añadir fila</button>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+// ===================================================
+//  TABLA CALIFICACIÓN POR EVALUACIÓN
+// ===================================================
+const CAL_EV_NAMES = ['1ª Evaluación', '2ª Evaluación', '3ª Evaluación'];
+const DEFAULT_CAL_EV = CAL_EV_NAMES.map(ev => ({
+  ev,
+  rows: [{ ra: 'RA1', pct: 100, instrumentos: '30% ACTIVIDADES\n70% EXAMEN' }]
+}));
+
+function getCalEv(fieldKey) {
+  if (!state.activeId) return structuredClone(DEFAULT_CAL_EV);
+  const d = state.modules[state.activeId].data[fieldKey];
+  return (Array.isArray(d) && d.length) ? d : structuredClone(DEFAULT_CAL_EV);
+}
+function setCalEv(fieldKey, val) {
+  if (!state.activeId) return;
+  state.modules[state.activeId].data[fieldKey] = val;
+  saveState();
+}
+
+function renderCalEv(field, data, locked) {
+  const blocks = (Array.isArray(data[field.key]) && data[field.key].length)
+    ? data[field.key] : structuredClone(DEFAULT_CAL_EV);
+
+  let html = `<div class="cal-ev-wrap" id="calev_${field.key}">`;
+
+  blocks.forEach((block, bi) => {
+    html += `<div class="cal-ev-block">
+      <div class="cal-ev-head">
+        <input value="${escHtml(block.ev)}" ${locked?'readonly':''}
+          style="background:transparent;border:none;color:white;font-weight:600;font-size:14px;font-family:'DM Sans',sans-serif;width:200px;"
+          oninput="calEvUpdateEvName('${field.key}',${bi},this.value)" title="Nombre de la evaluación">
+        ${!locked?`<button onclick="calEvRemoveBlock('${field.key}',${bi})"
+          style="background:rgba(255,255,255,.15);border:none;color:white;cursor:pointer;border-radius:4px;padding:3px 8px;font-size:12px;">✕ Eliminar</button>`:''}
+      </div>
+      <table class="cal-ev-table">
+        <thead><tr>
+          <th style="width:80px">RA</th>
+          <th style="width:70px">%</th>
+          <th>Ponderación por instrumentos</th>
+          ${!locked?'<th style="width:32px"></th>':''}
+        </tr></thead>
+        <tbody id="calev_tbody_${field.key}_${bi}">`;
+
+    block.rows.forEach((row, ri) => {
+      html += `<tr>
+        <td><div class="ra-cell">
+          <span class="ra-badge" style="font-size:10px">${escHtml(row.ra)}</span>
+          <input type="text" value="${escHtml(row.ra)}" ${locked?'readonly':''}
+            style="width:54px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;font-weight:600;"
+            oninput="calEvUpdateCell('${field.key}',${bi},${ri},'ra',this.value)">
+        </div></td>
+        <td><input type="number" min="0" max="100" value="${row.pct||0}" ${locked?'readonly':''}
+          style="width:58px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:13px;text-align:right;"
+          oninput="calEvUpdateCell('${field.key}',${bi},${ri},'pct',this.value)">%</td>
+        <td><textarea rows="2" ${locked?'readonly':''}
+          style="width:100%;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:12px;resize:vertical;"
+          oninput="calEvUpdateCell('${field.key}',${bi},${ri},'instrumentos',this.value)">${escHtml(row.instrumentos||'')}</textarea></td>
+        ${!locked?`<td style="text-align:center"><button onclick="calEvRemoveRow('${field.key}',${bi},${ri})"
+          style="background:none;border:none;cursor:pointer;color:#bbb;font-size:16px;">✕</button></td>`:''}
+      </tr>`;
+    });
+
+    html += `</tbody></table>
+      ${!locked?`<div style="padding:8px 10px;border-top:1px solid var(--border)">
+        <button class="table-add-row" style="margin:0" onclick="calEvAddRow('${field.key}',${bi})">+ Añadir RA</button>
+      </div>`:''}
+    </div>`;
+  });
+
+  html += `</div>`;
+  if (!locked) {
+    html += `<button class="table-add-row" style="margin-top:8px" onclick="calEvAddBlock('${field.key}')">+ Añadir evaluación</button>`;
+  }
+  return html;
+}
+
+// Funciones CRUD de la tabla calificación por evaluación
+function calEvUpdateEvName(fk, bi, val) {
+  const d = getCalEv(fk); d[bi].ev = val; setCalEv(fk, d);
+  // actualizar badge sin re-render
+  const inp = document.querySelector(`#calev_${fk} .cal-ev-block:nth-child(${bi+1}) .cal-ev-head input`);
+}
+function calEvUpdateCell(fk, bi, ri, col, val) {
+  const d = getCalEv(fk);
+  d[bi].rows[ri][col] = col === 'pct' ? (parseInt(val)||0) : val;
+  setCalEv(fk, d);
+  // actualizar badge RA si cambió el id
+  if (col === 'ra') {
+    const badge = document.querySelector(`#calev_tbody_${fk}_${bi} tr:nth-child(${ri+1}) .ra-badge`);
+    if (badge) badge.textContent = val;
+  }
+}
+function calEvAddRow(fk, bi) {
+  const d = getCalEv(fk);
+  d[bi].rows.push({ ra: `RA${d[bi].rows.length+1}`, pct: 100, instrumentos: '30% ACTIVIDADES\n70% EXAMEN' });
+  setCalEv(fk, d);
+  renderMainContent();
+}
+function calEvRemoveRow(fk, bi, ri) {
+  const d = getCalEv(fk);
+  d[bi].rows.splice(ri, 1);
+  setCalEv(fk, d);
+  renderMainContent();
+}
+function calEvAddBlock(fk) {
+  const d = getCalEv(fk);
+  d.push({ ev: `${d.length+1}ª Evaluación`, rows: [{ ra: 'RA1', pct: 100, instrumentos: '30% ACTIVIDADES\n70% EXAMEN' }] });
+  setCalEv(fk, d);
+  renderMainContent();
+}
+function calEvRemoveBlock(fk, bi) {
+  const d = getCalEv(fk);
+  d.splice(bi, 1);
+  setCalEv(fk, d);
+  renderMainContent();
+}
+
+function renderRaPct(field, data, locked) {
+  const pcts = data[field.key] || {};
+  let html = `<div style="display:flex;flex-direction:column;gap:10px;">`;
+  field.ras.forEach(ra => {
+    const val = pcts[ra.id] || 0;
+    const lockedAttr = locked ? 'readonly' : `oninput="updateRaPct('${field.key}','${ra.id}',this.value);updateBar('bar_${field.key}_${ra.id}',this.value)"`;
+    html += `<div class="ra-block">
+      <div class="ra-block-head">
+        <span class="ra-badge">${ra.id}</span>
+        <span class="ra-title">Ponderación sobre nota final</span>
+      </div>
+      <div class="ra-body">
+        <div class="pct-row">
+          <span class="pct-label">% sobre nota final del módulo</span>
+          <input type="number" min="0" max="100" class="pct-input" value="${val}" ${lockedAttr}>
+          <span class="pct-symbol">%</span>
+          <div class="pct-bar"><div class="pct-bar-fill" id="bar_${field.key}_${ra.id}" style="width:${val}%"></div></div>
+        </div>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function renderRaPctDynamic(field, data, locked) {
+  // Los RAs se almacenan como array: [{id, pct}]
+  const stored = data[field.key];
+  let ras = Array.isArray(stored) && stored.length
+    ? stored
+    : [{ id: 'RA1', pct: 0 }];
+
+  // Total
+  const total = ras.reduce((s, r) => s + (parseInt(r.pct)||0), 0);
+  const totalColor = total === 100 ? 'var(--success)' : (total > 100 ? 'var(--danger)' : 'var(--gold)');
+
+  let html = `<div id="rapct_container_${field.key}" style="display:flex;flex-direction:column;gap:8px;">`;
+
+  ras.forEach((ra, idx) => {
+    const val = parseInt(ra.pct) || 0;
+    html += `<div class="ra-pct-row" id="rapct_row_${field.key}_${idx}" style="display:flex;align-items:center;gap:10px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;">
+      <span class="ra-badge" style="min-width:36px;text-align:center">${escHtml(ra.id)}</span>
+      <input type="text" value="${escHtml(ra.id)}"
+        style="width:70px;border:1.5px solid var(--border);border-radius:5px;padding:5px 8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;"
+        placeholder="RA1"
+        oninput="updateRaDynId('${field.key}',${idx},this.value)"
+        ${locked?'readonly':''}
+        title="Identificador del RA">
+      <div class="pct-bar" style="flex:1"><div class="pct-bar-fill" id="bar_dyn_${field.key}_${idx}" style="width:${val}%"></div></div>
+      <input type="number" min="0" max="100" class="pct-input" value="${val}"
+        oninput="updateRaDynPct('${field.key}',${idx},this.value);updateBar('bar_dyn_${field.key}_${idx}',this.value);recalcTotal('${field.key}')"
+        ${locked?'readonly':''}
+        title="Porcentaje">
+      <span class="pct-symbol">%</span>
+      ${!locked ? `<button onclick="removeRaDyn('${field.key}',${idx})" title="Eliminar RA"
+        style="background:none;border:none;cursor:pointer;color:#aaa;font-size:18px;line-height:1;padding:0 2px;">✕</button>` : ''}
+    </div>`;
+  });
+
+  html += `</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px;">
+    ${!locked ? `<button class="table-add-row" style="flex:1;min-width:160px" onclick="addRaDyn('${field.key}')">+ Añadir RA</button>` : ''}
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;border:1.5px solid ${totalColor};background:${total===100?'#f0fff4':'#fff8f0'}">
+      <span style="font-size:12px;color:var(--text-muted)">Total:</span>
+      <span id="rapct_total_${field.key}" style="font-size:16px;font-weight:700;color:${totalColor}">${total}%</span>
+      ${total===100 ? '<span style="color:var(--success);font-size:13px">✔ correcto</span>' : `<span style="font-size:11px;color:${totalColor}">${total>100?'supera':'falta'} ${Math.abs(100-total)}%</span>`}
+    </div>
+  </div>`;
+
+  return html;
+}
+
+// Funciones para ra_pct_dynamic
+function getRaDynList(fieldKey) {
+  if (!state.activeId) return [];
+  const data = state.modules[state.activeId].data;
+  if (!Array.isArray(data[fieldKey])) return [];
+  return data[fieldKey];
+}
+function setRaDynList(fieldKey, list) {
+  if (!state.activeId) return;
+  state.modules[state.activeId].data[fieldKey] = list;
+  saveState();
+}
+function updateRaDynId(fieldKey, idx, newId) {
+  const list = getRaDynList(fieldKey);
+  if (list[idx] !== undefined) { list[idx].id = newId; setRaDynList(fieldKey, list); }
+  // Actualizar badge visual
+  const badge = document.querySelector(`#rapct_row_${fieldKey}_${idx} .ra-badge`);
+  if (badge) badge.textContent = newId;
+}
+function updateRaDynPct(fieldKey, idx, val) {
+  const list = getRaDynList(fieldKey);
+  if (list[idx] !== undefined) { list[idx].pct = parseInt(val)||0; setRaDynList(fieldKey, list); }
+}
+function addRaDyn(fieldKey) {
+  const list = getRaDynList(fieldKey);
+  const nextNum = list.length + 1;
+  list.push({ id: `RA${nextNum}`, pct: 0 });
+  setRaDynList(fieldKey, list);
+  renderMainContent();
+}
+function removeRaDyn(fieldKey, idx) {
+  const list = getRaDynList(fieldKey);
+  list.splice(idx, 1);
+  setRaDynList(fieldKey, list);
+  renderMainContent();
+}
+function recalcTotal(fieldKey) {
+  const list = getRaDynList(fieldKey);
+  const total = list.reduce((s, r) => s + (parseInt(r.pct)||0), 0);
+  const el = document.getElementById(`rapct_total_${fieldKey}`);
+  if (el) {
+    el.textContent = total + '%';
+    el.style.color = total === 100 ? 'var(--success)' : (total > 100 ? 'var(--danger)' : 'var(--gold)');
+  }
+}
+// ===================================================
+//  RICH TEXT EDITOR
+// ===================================================
+function rte(cmd, fieldKey) {
+  const el = document.getElementById('rte_' + fieldKey);
+  if (!el) return;
+  el.focus();
+  document.execCommand(cmd, false, null);
+  rteUpdate(fieldKey);
+  rteUpdateToolbar(fieldKey);
+}
+
+function rteUpdate(fieldKey) {
+  const el = document.getElementById('rte_' + fieldKey);
+  if (!el || !state.activeId) return;
+  if (state.modules[state.activeId]?.readOnly) return; // solo lectura — no guardar
+  state.modules[state.activeId].data[fieldKey] = el.innerHTML;
+  saveState();
+  rteUpdateToolbar(fieldKey);
+}
+
+// Al pegar, limpiar el HTML que viene del portapapeles
+function rtePaste(event, fieldKey) {
+  event.preventDefault();
+  const el = document.getElementById('rte_' + fieldKey);
+  if (!el) return;
+  // Intentar obtener texto plano primero, si no HTML
+  const html = event.clipboardData.getData('text/html');
+  const text = event.clipboardData.getData('text/plain');
+  if (html) {
+    const clean = sanitizeHtml(html);
+    document.execCommand('insertHTML', false, clean);
+  } else {
+    document.execCommand('insertText', false, text);
+  }
+  rteUpdate(fieldKey);
+}
+
+function rteUpdateToolbar(fieldKey) {
+  const toolbar = document.getElementById('toolbar_' + fieldKey);
+  if (!toolbar) return;
+  const cmds = { bold: 0, italic: 1, underline: 2 };
+  Object.entries(cmds).forEach(([cmd, idx]) => {
+    const btn = toolbar.querySelectorAll('button')[idx];
+    if (btn) btn.classList.toggle('active', document.queryCommandState(cmd));
+  });
+}
+
+function rteKeyDown(event, fieldKey) {
+  // Tab → indent, Shift+Tab → outdent
+  if (event.key === 'Tab') {
+    event.preventDefault();
+    rte(event.shiftKey ? 'outdent' : 'indent', fieldKey);
+  }
+}
+
+function insertChecklist(fieldKey) {
+  const el = document.getElementById('rte_' + fieldKey);
+  if (!el) return;
+  el.focus();
+  // Insertar una lista con checkbox
+  const html = '<ul class="checklist"><li><input type="checkbox"> </li></ul>';
+  document.execCommand('insertHTML', false, html);
+  rteUpdate(fieldKey);
+}
+
+// Actualizar toolbar al hacer click dentro del editor
+document.addEventListener('selectionchange', () => {
+  const active = document.activeElement;
+  if (active && active.classList.contains('rich-content') && active.dataset.key) {
+    rteUpdateToolbar(active.dataset.key);
+  }
+});
+
+// ===================================================
+//  AUTO-RESIZE TEXTAREAS
+// ===================================================
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+function autoResizeAll() {
+  document.querySelectorAll('.field textarea').forEach(autoResize);
+}
+
+function computeField(key, data) {
+  if (key === 'perdida_ec_horas') {
+    const horas = parseFloat(data['modulo_horas']) || 0;
+    if (!horas) return '— (introduce las horas del módulo)';
+    const perdida = Math.round(horas * 0.15);
+    return `${perdida} horas (15% de ${horas}h)`;
+  }
+  return '';
+}
+
+function calcPerdidaHoras(horasVal) {
+  if (!state.activeId) return;
+  // Guardar horas
+  updateField('modulo_horas', horasVal);
+  // Recalcular y mostrar en el campo computed
+  const el = document.getElementById('field_perdida_ec_horas');
+  if (el) {
+    const data = state.modules[state.activeId].data;
+    el.value = computeField('perdida_ec_horas', data);
+  }
+}
+
+// ===================================================
+//  ACTUALIZACIÓN DE DATOS
+// ===================================================
+function updateField(key, value) {
+  if (!state.activeId) return;
+  if (state.modules[state.activeId]?.readOnly) return; // solo lectura — no guardar
+  state.modules[state.activeId].data[key] = value;
+  // update meta si corresponde
+  if (key === 'modulo_nombre') state.modules[state.activeId].meta.name = value;
+  if (key === 'modulo_codigo') state.modules[state.activeId].meta.code = value;
+  if (key === 'curso') state.modules[state.activeId].meta.course = value;
+  saveState();
+}
+
+function updateTableCell(fieldKey, rowIdx, colIdx, value) {
+  if (!state.activeId) return;
+  const data = state.modules[state.activeId].data;
+  if (!data[fieldKey]) data[fieldKey] = [];
+  if (!data[fieldKey][rowIdx]) data[fieldKey][rowIdx] = [];
+  data[fieldKey][rowIdx][colIdx] = value;
+  saveState();
+}
+
+function addTableRow(fieldKey, numCols) {
+  if (!state.activeId) return;
+  const data = state.modules[state.activeId].data;
+  if (!data[fieldKey]) data[fieldKey] = [];
+
+  // Find field def to get current rows
+  let rows = data[fieldKey];
+  const emptyRow = Array(numCols).fill('');
+  data[fieldKey] = [...rows, emptyRow];
+  saveState();
+
+  // Re-render just this table
+  const tbody = document.getElementById('tbody_' + fieldKey);
+  if (!tbody) { renderMainContent(); return; }
+  const ri = data[fieldKey].length - 1;
+  const row = data[fieldKey][ri];
+  const tr = document.createElement('tr');
+  tr.innerHTML = row.map((c,ci)=>`<td><textarea rows="2" onchange="updateTableCell('${fieldKey}',${ri},${ci},this.value)">${escHtml(c)}</textarea></td>`).join('')
+    + `<td style="text-align:center;vertical-align:middle"><button onclick="removeTableRow('${fieldKey}',${ri})" style="background:none;border:none;cursor:pointer;color:#999;font-size:16px">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function removeTableRow(fieldKey, rowIdx) {
+  if (!state.activeId) return;
+  const data = state.modules[state.activeId].data;
+  if (!data[fieldKey]) return;
+  data[fieldKey].splice(rowIdx, 1);
+  saveState();
+  renderMainContent();
+}
+
+function updateRaPct(fieldKey, raId, value) {
+  if (!state.activeId) return;
+  const data = state.modules[state.activeId].data;
+  if (!data[fieldKey]) data[fieldKey] = {};
+  data[fieldKey][raId] = parseInt(value) || 0;
+  saveState();
+}
+
+function updateBar(barId, value) {
+  const bar = document.getElementById(barId);
+  if (bar) bar.style.width = Math.min(100, parseInt(value)||0) + '%';
+}
+
+// ===================================================
+// ===================================================
+//  PREVISUALIZACIÓN
+// ===================================================
+function openPreview() {
+  if (!state.activeId) return;
+  const mod  = state.modules[state.activeId];
+  const data = mod.data || {};
+  const html = buildDocumentHtml(mod, data);
+  const frame = document.getElementById('previewFrame');
+  frame.srcdoc = html;
+  document.getElementById('previewModal').classList.remove('hidden');
+}
+
+function closePreview() {
+  document.getElementById('previewModal').classList.add('hidden');
+  document.getElementById('previewFrame').srcdoc = '';
+}
+
+// ===================================================
+//  EXPORTAR WORD (via Claude API)
+// ===================================================
+async function exportWord() {
+  if (!state.activeId) return;
+  const mod = state.modules[state.activeId];
+  showLoading('Generando documento Word…');
+
+  const prompt = buildExportPrompt(mod, 'word');
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.map(b => b.text || '').join('');
+    // Generar HTML que simula Word para descarga
+    generateWordHtml(mod, text);
+    hideLoading();
+    showStatus('✔ Documento Word generado');
+  } catch(err) {
+    hideLoading();
+    // Fallback: generar sin IA
+    generateWordHtml(mod, null);
+    showStatus('Documento generado (sin conexión a IA)', 'error');
+  }
+}
+
+function generateWordHtml(mod, aiText) {
+  const data = mod.data || {};
+  const html = buildDocumentHtml(mod, data, 'word');
+  const blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `programacion_${data.modulo_codigo || 'modulo'}_${data.curso || ''}.doc`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ===================================================
+//  EXPORTAR PDF
+// ===================================================
+async function exportPDF() {
+  if (!state.activeId) return;
+  const mod = state.modules[state.activeId];
+  const data = mod.data || {};
+  showLoading('Generando PDF…');
+
+  const html = buildDocumentHtml(mod, data);
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => { win.print(); hideLoading(); }, 800);
+}
+
+// ===================================================
+//  CONSTRUCTOR DE DOCUMENTO HTML
+// ===================================================
+function buildDocumentHtml(mod, data, target = 'preview') {
+  const titulo = data.modulo_nombre || mod.meta.name || 'Programación Didáctica';
+  const codigo = data.modulo_codigo || mod.meta.code || '';
+  const ciclo  = data.ciclo || mod.meta.cycle || '';
+  const curso  = data.curso || mod.meta.course || '';
+  const docente = data.docente || '';
+  const centro = data.centro_nombre || '';
+
+  let body = '';
+
+  // Portada
+  body += `<div class="portada">
+    <div class="portada-logo">${centro}</div>
+    <h1 class="portada-titulo">${escHtml(titulo)}</h1>
+    <div class="portada-sub">${escHtml(ciclo)}</div>
+    <div class="portada-meta">
+      <span>Código: ${escHtml(codigo)}</span>
+      <span>Curso ${escHtml(curso)}</span>
+      <span>${escHtml(docente)}</span>
+    </div>
+  </div>
+  <div style="page-break-after:always"></div>`;
+
+  // Índice
+  body += `<h2>Índice</h2><ul class="indice">`;
+  FIELD_DEFS.forEach(sec => {
+    body += `<li><a href="#${sec.section}">${sec.letter}) ${sec.label.replace(/^[a-z]\)\s*/i,'')}</a></li>`;
+  });
+  body += `</ul><div style="page-break-after:always"></div>`;
+
+  // Secciones
+  FIELD_DEFS.forEach(sec => {
+    body += `<h2 id="${sec.section}">${sec.letter}) ${sec.label.replace(/^[a-z]\)\s*/i,'')}</h2>`;
+    sec.fields.forEach(field => {
+      const value = data[field.key];
+      if (!value) return;
+
+      if (field.type === 'table' && Array.isArray(value)) {
+        body += `<p><strong>${escHtml(field.label)}</strong></p>`;
+        body += `<table><thead><tr>${field.columns.map(c=>`<th>${escHtml(c)}</th>`).join('')}</tr></thead><tbody>`;
+        value.forEach(row => {
+          body += `<tr>${row.map(cell=>`<td>${escHtml(cell||'')}</td>`).join('')}</tr>`;
+        });
+        body += `</tbody></table>`;
+      } else if (field.type === 'ra_pct' && typeof value === 'object') {
+        body += `<p><strong>Ponderación de Resultados de Aprendizaje</strong></p>`;
+        body += `<table><thead><tr><th>RA</th><th>Ponderación (%)</th></tr></thead><tbody>`;
+        Object.entries(value).forEach(([ra, pct]) => {
+          body += `<tr><td>${ra}</td><td>${pct}%</td></tr>`;
+        });
+        body += `</tbody></table>`;
+      } else if (typeof value === 'string') {
+        body += `<p><strong>${escHtml(field.label)}</strong></p>`;
+        // El valor puede ser HTML rico (del editor) o texto plano
+        const isRichHtml = /<[a-z][\s\S]*>/i.test(value);
+        if (isRichHtml) {
+          body += `<div class="rich-value">${sanitizeHtml(value)}</div>`;
+        } else {
+          body += `<p>${escHtml(value).replace(/\n/g,'<br>')}</p>`;
+        }
+      }
+    });
+  });
+
+  // Historial
+  body += `<h2>Historial de modificaciones</h2>
+  <table><thead><tr><th>Versión</th><th>Descripción</th><th>Fecha</th></tr></thead>
+  <tbody><tr><td>V1.0.0</td><td>Programación inicial</td><td>${new Date().toLocaleDateString('es-ES')}</td></tr></tbody></table>`;
+
+  // Word usa mso-page-orientation y márgenes de página via XML para ocupar el ancho completo
+  const wordPageCss = target === 'word' ? `
+  @page WordSection { size: 21cm 29.7cm; mso-page-orientation: portrait;
+    margin: 2cm 2cm 2cm 2cm; }
+  div.WordSection { page: WordSection; }
+  body { margin: 0; padding: 0; }
+  ` : `
+  body { margin: 2cm; }
+  @media print { @page { margin: 2cm; } body { margin: 0; } h2 { break-before: auto; } }
+  `;
+
+  return `<!DOCTYPE html>
+<html lang="es"${target === 'word' ? ' xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"' : ''}>
+<head>
+<meta charset="UTF-8">
+<title>${escHtml(titulo)}</title>
+${target === 'word' ? `<!--[if gte mso 9]><xml>
+ <w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom>
+ <w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->` : ''}
+<style>
+  body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #222; }
+  h1 { font-size: 18pt; color: #1a2744; margin-bottom: 8px; }
+  h2 { font-size: 14pt; color: #1a2744; border-bottom: 2px solid #c8a84b; padding-bottom: 4px; margin-top: 24px; }
+  h3 { font-size: 12pt; color: #1a2744; margin-top: 16px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10pt; }
+  th { background: #1a2744; color: white; padding: 8px; text-align: left; }
+  td { padding: 6px 8px; border: 1px solid #ccc; }
+  tr:nth-child(even) td { background: #f8f6f0; }
+  ul, ol { margin: 8px 0 8px 24px; }
+  p { margin: 6px 0; }
+  .rich-value { margin: 6px 0; line-height: 1.6; }
+  .rich-value ul, .rich-value ol { margin: 4px 0 4px 24px; }
+  .rich-value ul.checklist { list-style: none; margin-left: 4px; }
+  .rich-value ul.checklist li { display: flex; align-items: flex-start; gap: 6px; margin: 2px 0; }
+  .portada { text-align: center; padding: 80px 40px; }
+  .portada-logo { font-size: 14pt; color: #6b6b6b; margin-bottom: 40px; font-style: italic; }
+  .portada-titulo { font-size: 24pt; color: #1a2744; margin-bottom: 16px; }
+  .portada-sub { font-size: 14pt; color: #6b6b6b; margin-bottom: 48px; }
+  .portada-meta { display: flex; justify-content: center; gap: 40px; font-size: 12pt; color: #444; }
+  .indice li { margin: 4px 0; }
+  .indice a { color: #1a2744; }
+  ${wordPageCss}
+</style>
+</head>
+<body>${target === 'word' ? '<div class="WordSection">' : ''}${body}${target === 'word' ? '</div>' : ''}</body>
+</html>`;
+}
+
+function buildExportPrompt(mod, format) {
+  const data = mod.data || {};
+  return `Eres un asistente que genera programaciones didácticas de Formación Profesional para el sistema educativo español (Aragón). Tienes los siguientes datos del módulo y debes confirmar brevemente que los has recibido:\n\nMódulo: ${data.modulo_nombre}\nCódigo: ${data.modulo_codigo}\nCiclo: ${data.ciclo}\n\nResponde en una sola línea confirmando.`;
+}
+
+// ===================================================
+//  ADMIN PANEL
+// ===================================================
+function openAdmin() {
+  // Con autenticación JWT: el admin ya está identificado por su rol
+  if (!adminLoggedIn) {
+    showStatus('Acceso denegado. Solo el administrador puede acceder a este panel.', 'error');
+    return;
+  }
+  renderAdminPanel();
+  document.getElementById('adminPanelOverlay').classList.remove('hidden');
+}
+
+function closeAdminLogin() {
+  document.getElementById('adminLoginModal').classList.add('hidden');
+  document.getElementById('adminPwdInput').value = '';
+}
+
+function verifyAdmin() {
+  // Mantener compatibilidad: si por algún motivo se muestra el modal de login
+  // verificamos contra el rol del usuario actual
+  if (currentUser?.role === 'admin') {
+    adminLoggedIn = true;
+    closeAdminLogin();
+    renderAdminPanel();
+    document.getElementById('adminPanelOverlay').classList.remove('hidden');
+  } else {
+    alert('No tienes permisos de administrador.');
+  }
+}
+
+function closeAdminPanel() {
+  document.getElementById('adminPanelOverlay').classList.add('hidden');
+}
+
+function renderAdminPanel() {
+  // Rellenar pestaña Campos bloqueados con los toggles
+  const ADMIN_LOCKABLE_EXCLUDE = new Set(['modulo_nombre','modulo_codigo','modulo_horas','modulo_horas_sem','perdida_ec_horas']);
+  const locksBody = document.getElementById('adminLocksBody');
+  if (locksBody) {
+    let html = '';
+    FIELD_DEFS.forEach(section => {
+      const lockableFields = section.fields.filter(f =>
+        !['table','ra_pct','computed','divider','calificacion_ev','ra_pct_dynamic'].includes(f.type) &&
+        !ADMIN_LOCKABLE_EXCLUDE.has(f.key)
+      );
+      if (!lockableFields.length) return;
+      html += `<div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;
+        letter-spacing:.06em;padding:10px 0 6px;border-bottom:1px solid var(--cream-dark);margin-bottom:8px;margin-top:16px">
+        ${section.label}
+      </div>`;
+      lockableFields.forEach(field => {
+        const isLocked  = !!(adminConfig.lockedFields?.[field.key]);
+        const lockedVal = adminConfig.lockedValues?.[field.key] || '';
+        const isTA      = field.type === 'textarea';
+        html += `<div class="admin-field-block" id="block_${field.key}"
+          style="border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+            background:${isLocked?'var(--locked-bg)':'var(--white)'}" id="blockhead_${field.key}">
+            <div>
+              <div style="font-size:13px;font-weight:500">${field.label}</div>
+              <div style="font-size:11px;color:var(--text-muted);font-family:monospace">${field.key}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:11px;color:${isLocked?'var(--navy)':'var(--text-muted)'};font-weight:${isLocked?'600':'400'}"
+                id="lockLabel_${field.key}">${isLocked?'🔒 Bloqueado':'🔓 Libre'}</span>
+              <label class="toggle" onclick="event.stopPropagation()">
+                <input type="checkbox" id="lock_${field.key}" ${isLocked?'checked':''}
+                  onchange="adminToggleLock('${field.key}', this.checked)">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div id="lockval_${field.key}" class="${isLocked?'':'hidden'}"
+            style="padding:10px 14px;background:var(--locked-bg);border-top:1px dashed var(--locked-border)">
+            <label style="font-size:11px;font-weight:600;color:var(--navy);text-transform:uppercase;
+              letter-spacing:.05em;display:block;margin-bottom:6px">
+              ✏ Texto fijo que verán los usuarios
+            </label>
+            ${isTA ? `
+              <div class="rich-editor-wrap" style="border-color:var(--locked-border)">
+                <div class="rich-toolbar" id="admtoolbar_${field.key}">
+                  <button onmousedown="event.preventDefault();rteAdm('bold','${field.key}')" title="Negrita"><b>B</b></button>
+                  <button onmousedown="event.preventDefault();rteAdm('italic','${field.key}')" title="Cursiva"><i>I</i></button>
+                  <button onmousedown="event.preventDefault();rteAdm('underline','${field.key}')" title="Subrayado" style="text-decoration:underline">U</button>
+                  <div class="toolbar-sep"></div>
+                  <button onmousedown="event.preventDefault();rteAdm('insertUnorderedList','${field.key}')" title="Lista">≡</button>
+                  <button onmousedown="event.preventDefault();rteAdm('insertOrderedList','${field.key}')" title="Numerada">1.</button>
+                  <button onmousedown="event.preventDefault();insertChecklistAdm('${field.key}')" title="Checklist">☑</button>
+                  <div class="toolbar-sep"></div>
+                  <button onmousedown="event.preventDefault();rteAdm('removeFormat','${field.key}')" title="Quitar formato" style="font-size:11px">✕</button>
+                </div>
+                <div class="rich-content" id="lv_${field.key}" contenteditable="true"
+                  data-key="adm_${field.key}" style="min-height:80px"
+                  placeholder="Escribe aquí el texto fijo…"
+                  oninput="rteAdmUpdateToolbar('${field.key}')">${lockedVal}</div>
+              </div>
+            ` : `<input type="text" id="lv_${field.key}" value="${escHtml(lockedVal)}"
+                style="width:100%;border:1.5px solid var(--locked-border);border-radius:6px;padding:8px 10px;
+                font-family:'DM Sans',sans-serif;font-size:13px;background:white"
+                placeholder="Texto fijo para todos los usuarios…">`}
+            <p style="font-size:11px;color:var(--text-muted);margin-top:5px;font-style:italic">
+              Si lo dejas vacío, el campo aparecerá bloqueado pero en blanco.
+            </p>
+          </div>
+        </div>`;
+      });
+    });
+    locksBody.innerHTML = html;
+  }
+
+  // Cargar datos asíncronos
+  adminLoadUsersAndProfiles();
+}
+
+// Cambiar pestaña activa
+function adminSwitchTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  document.querySelectorAll('.admin-tab-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.id === `adminTab-${tab}`);
+  });
+}
+
+// ── Helpers del panel admin ────────────────────────────────
+
+// Carga usuarios y perfiles y rellena las listas y selects del panel
+async function adminLoadUsersAndProfiles() {
+  try {
+    const [{ users }, { profiles }] = await Promise.all([Users.list(), Profiles.list()]);
+
+    // Rellenar selector de ciclo para bloqueo de campos
+    const cicloSel = document.getElementById('adminCicloSelect');
+    if (cicloSel) {
+      cicloSel.innerHTML = '<option value="">— Selecciona un ciclo —</option>' +
+        profiles.map(p => `<option value="${p.id}">${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('');
+    }
+
+    // Rellenar selector de ciclo en formulario de nuevo usuario
+    const newUserCicloSel = document.getElementById('newUserCiclo');
+    if (newUserCicloSel) {
+      newUserCicloSel.innerHTML = '<option value="">— Sin ciclo —</option>' +
+        profiles.map(p => `<option value="${p.id}">${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('');
+    }
+
+    // Render lista de usuarios
+    const usersList = document.getElementById('adminUsersList');
+    if (usersList) {
+      if (!users.filter(u => u.role === 'docente').length) {
+        usersList.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">No hay docentes creados aún.</div>';
+      } else {
+        usersList.innerHTML = users.filter(u => u.role === 'docente').map(u => `
+          <div style="border:1.5px solid var(--border);border-radius:7px;margin-bottom:6px;background:white;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px">
+              <div>
+                <span style="font-size:13px;font-weight:500">${escHtml(u.nombre || u.username)}</span>
+                <span style="font-size:11px;color:var(--text-muted);margin-left:6px">@${escHtml(u.username)}</span>
+                ${u.cicloNombre ? `<span style="font-size:11px;color:var(--navy);margin-left:6px">· ${escHtml(u.cicloCod)}</span>` : ''}
+                ${!u.activo ? '<span style="font-size:11px;color:var(--danger);margin-left:6px">· Inactivo</span>' : ''}
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost btn-sm" onclick="adminToggleEditUser(${u.id})">✏️ Editar</button>
+                <button class="btn btn-ghost btn-sm" onclick="adminToggleUser(${u.id},${u.activo})">${u.activo ? '⏸' : '▶'}</button>
+                <button class="btn btn-danger btn-sm" onclick="adminDeleteUser(${u.id},'${escHtml(u.username)}')">✕</button>
+              </div>
+            </div>
+            <!-- Formulario de edición inline (oculto por defecto) -->
+            <div id="editUserForm_${u.id}" style="display:none;padding:12px 14px;border-top:1px solid var(--border);background:var(--cream)">
+              <div class="fields-row" style="margin-bottom:8px">
+                <div class="field">
+                  <label class="field-label" style="font-size:11px">Nombre completo</label>
+                  <input type="text" id="editUserNombre_${u.id}" value="${escHtml(u.nombre || '')}"
+                    style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;width:100%">
+                </div>
+                <div class="field">
+                  <label class="field-label" style="font-size:11px">Ciclo asignado</label>
+                  <select id="editUserCiclo_${u.id}"
+                    style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;width:100%">
+                    <option value="">— Sin ciclo —</option>
+                    ${profiles.map(p => `<option value="${p.id}" ${p.id === u.ciclo_id ? 'selected' : ''}>${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+              <div class="fields-row" style="margin-bottom:10px">
+                <div class="field">
+                  <label class="field-label" style="font-size:11px">Nueva contraseña <span style="color:var(--text-muted)">(dejar vacío para no cambiar)</span></label>
+                  <input type="password" id="editUserPwd_${u.id}" placeholder="Mín. 6 caracteres"
+                    style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;width:100%">
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-primary btn-sm" onclick="adminSaveUser(${u.id})">💾 Guardar</button>
+                <button class="btn btn-ghost btn-sm" onclick="adminToggleEditUser(${u.id})">Cancelar</button>
+                <span id="editUserStatus_${u.id}" style="font-size:12px"></span>
+              </div>
+            </div>
+          </div>`).join('');
+      }
+    }
+
+    // Render lista de perfiles
+    const profilesList = document.getElementById('adminProfilesList');
+    if (profilesList) {
+      if (!profiles.length) {
+        profilesList.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">No hay perfiles de ciclo. Crea el primero.</div>';
+      } else {
+        profilesList.innerHTML = profiles.map(p => {
+          const nLocked = p.locked_fields?.length || 0;
+          const lockedNames = (p.locked_fields || [])
+            .map(f => f.label || f.key)
+            .join(', ');
+          return `<div style="border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px;background:white;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px">
+              <div style="flex:1;min-width:0">
+                <span style="font-size:13px;font-weight:600;color:var(--navy)">${escHtml(p.cod)}</span>
+                <span style="font-size:13px;margin-left:6px">${escHtml(p.nombre)}</span>
+                <span style="font-size:11px;color:${nLocked ? 'var(--navy)' : 'var(--text-muted)'};margin-left:8px;font-weight:${nLocked ? '600' : '400'}">
+                  🔒 ${nLocked} campo${nLocked !== 1 ? 's' : ''} bloqueado${nLocked !== 1 ? 's' : ''}
+                </span>
+                ${nLocked ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;padding-left:2px">${escHtml(lockedNames)}</div>` : ''}
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px">
+                <button class="btn btn-ghost btn-sm" onclick="adminEditProfile(${p.id})">✏️ Editar campos</button>
+                <button class="btn btn-danger btn-sm" onclick="adminDeleteProfile(${p.id},'${escHtml(p.cod)}')">✕</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
+  } catch(e) {
+    console.error('adminLoadUsersAndProfiles:', e);
+  }
+}
+
+// Carga los locks del ciclo seleccionado y los marca en el panel
+async function adminLoadCicloLocks(cicloId) {
+  const st = document.getElementById('adminCicloStatus');
+  if (!cicloId) { if (st) st.textContent = ''; return; }
+  try {
+    const { profile } = await Profiles.get(cicloId);
+    const lockedArr   = profile.locked_fields || [];
+    // Resetear todos los toggles
+    document.querySelectorAll('[id^="lock_"]').forEach(el => {
+      el.checked = false;
+      adminToggleLock(el.id.replace('lock_',''), false);
+    });
+    // Activar los del perfil cargado
+    lockedArr.forEach(f => {
+      const lockEl = document.getElementById('lock_' + f.key);
+      const valEl  = document.getElementById('lv_'   + f.key);
+      if (lockEl) { lockEl.checked = true; adminToggleLock(f.key, true); }
+      if (valEl) {
+        if (valEl.tagName === 'INPUT') valEl.value = f.value || '';
+        else valEl.innerHTML = f.value || '';
+      }
+    });
+    if (st) st.textContent = `✔ ${lockedArr.length} campo${lockedArr.length !== 1 ? 's' : ''} bloqueado${lockedArr.length !== 1 ? 's' : ''} en este ciclo`;
+  } catch(e) {
+    if (st) st.textContent = 'Error al cargar el perfil: ' + e.message;
+  }
+}
+
+function adminOpenNewUser() {
+  document.getElementById('adminNewUserForm').style.display = 'block';
+  document.getElementById('newUserUsername').focus();
+}
+
+async function adminCreateUser() {
+  const username = document.getElementById('newUserUsername').value.trim();
+  const nombre   = document.getElementById('newUserNombre').value.trim();
+  const password = document.getElementById('newUserPwd').value;
+  const cicloId  = document.getElementById('newUserCiclo').value || null;
+  const st       = document.getElementById('adminNewUserStatus');
+  if (!username || !password) { st.textContent = 'Usuario y contraseña son obligatorios.'; st.style.color='var(--danger)'; return; }
+  try {
+    await Users.create({ username, nombre, password, cicloId: cicloId ? parseInt(cicloId) : null });
+    st.textContent = `✔ Docente "${username}" creado correctamente.`;
+    st.style.color = 'var(--success)';
+    ['newUserUsername','newUserNombre','newUserPwd'].forEach(id => document.getElementById(id).value = '');
+    adminLoadUsersAndProfiles();
+  } catch(e) { st.textContent = e.message; st.style.color = 'var(--danger)'; }
+}
+
+function adminToggleEditUser(id) {
+  const form = document.getElementById(`editUserForm_${id}`);
+  if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+async function adminSaveUser(id) {
+  const nombre   = document.getElementById(`editUserNombre_${id}`)?.value.trim();
+  const cicloId  = document.getElementById(`editUserCiclo_${id}`)?.value || null;
+  const password = document.getElementById(`editUserPwd_${id}`)?.value.trim();
+  const st       = document.getElementById(`editUserStatus_${id}`);
+
+  st.textContent = '';
+
+  // Validar contraseña antes de hacer ninguna llamada
+  if (password && password.length < 6) {
+    st.textContent = '⚠️ La contraseña debe tener al menos 6 caracteres.';
+    st.style.color = 'var(--danger)';
+    return;
+  }
+
+  let errors = [];
+
+  // 1. Actualizar nombre y ciclo
+  try {
+    await Users.update(id, {
+      nombre:  nombre  || null,
+      cicloId: cicloId ? parseInt(cicloId) : null,
+    });
+  } catch(e) {
+    errors.push('Datos: ' + e.message);
+  }
+
+  // 2. Cambiar contraseña si se rellenó
+  if (password) {
+    try {
+      await Users.changePassword(id, { newPassword: password });
+      document.getElementById(`editUserPwd_${id}`).value = '';
+    } catch(e) {
+      errors.push('Contraseña: ' + e.message);
+    }
+  }
+
+  if (errors.length) {
+    st.textContent = '✗ ' + errors.join(' | ');
+    st.style.color = 'var(--danger)';
+  } else {
+    st.textContent = '✔ Guardado correctamente';
+    st.style.color = 'var(--success)';
+    setTimeout(() => adminLoadUsersAndProfiles(), 800);
+  }
+}
+
+async function adminToggleUser(id, currentActivo) {
+  try {
+    await Users.update(id, { activo: !currentActivo });
+    adminLoadUsersAndProfiles();
+  } catch(e) { showStatus('Error: ' + e.message, 'error'); }
+}
+
+async function adminDeleteUser(id, username) {
+  if (!confirm(`¿Eliminar al docente "${username}"? Sus programaciones también se eliminarán.`)) return;
+  try {
+    await Users.delete(id);
+    adminLoadUsersAndProfiles();
+    showStatus(`✔ Docente "${username}" eliminado`);
+  } catch(e) { showStatus('Error: ' + e.message, 'error'); }
+}
+
+function adminOpenNewProfile() {
+  document.getElementById('adminNewProfileForm').style.display = 'block';
+  document.getElementById('newProfileCod').focus();
+}
+
+async function adminCreateProfile() {
+  const cod    = document.getElementById('newProfileCod').value.trim().toUpperCase();
+  const nombre = document.getElementById('newProfileNombre').value.trim();
+  const st     = document.getElementById('adminNewProfileStatus');
+  if (!cod || !nombre) { st.textContent = 'Código y nombre son obligatorios.'; st.style.color='var(--danger)'; return; }
+  try {
+    await Profiles.create({ cod, nombre, locked_fields: [] });
+    st.textContent = `✔ Perfil "${cod}" creado.`;
+    st.style.color = 'var(--success)';
+    ['newProfileCod','newProfileNombre'].forEach(id => document.getElementById(id).value = '');
+    adminLoadUsersAndProfiles();
+  } catch(e) { st.textContent = e.message; st.style.color = 'var(--danger)'; }
+}
+
+async function adminEditProfile(cicloId) {
+  // Cambiar a la pestaña de campos bloqueados
+  adminSwitchTab('locks');
+  // Seleccionar el ciclo en el selector
+  const sel = document.getElementById('adminCicloSelect');
+  if (sel) {
+    sel.value = cicloId;
+    sel.style.borderColor = 'var(--gold)';
+    setTimeout(() => sel.style.borderColor = '', 2000);
+  }
+  await adminLoadCicloLocks(cicloId);
+  const st = document.getElementById('adminCicloStatus');
+  if (st) st.innerHTML = '✏️ Modifica los candados y pulsa <strong>Guardar configuración</strong> para aplicar.';
+}
+
+async function adminDeleteProfile(id, cod) {
+  if (!confirm(`¿Eliminar el perfil "${cod}"? Los campos bloqueados de ese ciclo se perderán.`)) return;
+  try {
+    await Profiles.delete(id);
+    adminLoadUsersAndProfiles();
+    showStatus(`✔ Perfil "${cod}" eliminado`);
+  } catch(e) { showStatus('Error: ' + e.message, 'error'); }
+}
+
+async function saveAdminConfig() {
+  const messages = [];
+
+  // ── 1. Contraseña del admin (pestaña Docentes y seguridad) ──
+  const newPwd = document.getElementById('adminNewPwd')?.value.trim();
+  if (newPwd) {
+    if (newPwd.length < 6) {
+      showStatus('⚠️ La nueva contraseña debe tener al menos 6 caracteres.', 'error');
+      return;
+    }
+    try {
+      await Users.changePassword(currentUser.id, { newPassword: newPwd });
+      document.getElementById('adminNewPwd').value = '';
+      messages.push('contraseña actualizada');
+    } catch(e) {
+      showStatus('Error al cambiar contraseña: ' + e.message, 'error');
+      return;
+    }
+  }
+
+  // ── 2. Campos bloqueados (pestaña Campos bloqueados) ──
+  // Solo se guarda si hay un ciclo seleccionado en esa pestaña
+  const cicloSelectEl = document.getElementById('adminCicloSelect');
+  const cicloId = cicloSelectEl?.value ? parseInt(cicloSelectEl.value) : null;
+
+  if (cicloId) {
+    // Recopilar estado de los toggles
+    const LOCKABLE_EXCLUDE = new Set(['modulo_nombre','modulo_codigo','modulo_horas','modulo_horas_sem','perdida_ec_horas']);
+    adminConfig.lockedFields = {};
+    adminConfig.lockedValues = {};
+    FIELD_DEFS.forEach(section => {
+      section.fields.forEach(field => {
+        if (['table','ra_pct','computed','divider','calificacion_ev','ra_pct_dynamic'].includes(field.type)) return;
+        if (LOCKABLE_EXCLUDE.has(field.key)) return;
+        const lockEl = document.getElementById('lock_' + field.key);
+        const valEl  = document.getElementById('lv_'   + field.key);
+        if (lockEl?.checked) {
+          adminConfig.lockedFields[field.key] = true;
+          if (valEl) adminConfig.lockedValues[field.key] =
+            (valEl.tagName !== 'INPUT') ? valEl.innerHTML : valEl.value;
+        }
+      });
+    });
+
+    const locked_fields = Object.entries(adminConfig.lockedFields)
+      .filter(([, v]) => v)
+      .map(([k]) => ({
+        key:   k,
+        value: adminConfig.lockedValues[k] || '',
+        label: FIELD_DEFS.flatMap(s => s.fields).find(f => f.key === k)?.label || k,
+      }));
+    try {
+      await Profiles.update(cicloId, { locked_fields });
+      await adminLoadUsersAndProfiles();
+      messages.push(`${locked_fields.length} campos bloqueados guardados`);
+    } catch(e) {
+      showStatus('Error al guardar campos bloqueados: ' + e.message, 'error');
+      return;
+    }
+
+    // Propagar valores bloqueados a módulos en memoria
+    Object.values(state.modules).forEach(mod => {
+      if (!mod._loaded) return;
+      Object.entries(adminConfig.lockedValues).forEach(([k, v]) => { if (v !== '') mod.data[k] = v; });
+    });
+    if (state.activeId) renderMainContent();
+  }
+
+  // ── 3. Guardar estado local de la sesión admin ──
+  await saveAdminState();
+
+  // Mensaje de confirmación
+  if (messages.length) {
+    showStatus('✔ Guardado: ' + messages.join(', '));
+  } else {
+    showStatus('✔ Sin cambios pendientes');
+  }
+}
+
+// Muestra/oculta el área de texto fijo al activar/desactivar el candado en el admin
+function adminToggleLock(fieldKey, checked) {
+  const valDiv    = document.getElementById('lockval_'   + fieldKey);
+  const label     = document.getElementById('lockLabel_' + fieldKey);
+  const blockHead = document.getElementById('blockhead_' + fieldKey);
+  if (valDiv)     valDiv.classList.toggle('hidden', !checked);
+  if (label)      {
+    label.textContent   = checked ? '🔒 Bloqueado' : '🔓 Libre';
+    label.style.color       = checked ? 'var(--navy)'       : 'var(--text-muted)';
+    label.style.fontWeight  = checked ? '600'               : '400';
+  }
+  if (blockHead)  blockHead.style.background = checked ? 'var(--locked-bg)' : 'var(--white)';
+  if (checked) {
+    const input = document.getElementById('lv_' + fieldKey);
+    if (input) setTimeout(() => input.focus(), 50);
+  }
+}
+
+// Funciones del rich editor en el panel admin
+function rteAdm(cmd, fieldKey) {
+  const el = document.getElementById('lv_' + fieldKey);
+  if (!el || el.tagName === 'INPUT') return;
+  el.focus();
+  document.execCommand(cmd, false, null);
+  rteAdmUpdateToolbar(fieldKey);
+}
+
+function rteAdmUpdateToolbar(fieldKey) {
+  const toolbar = document.getElementById('admtoolbar_' + fieldKey);
+  if (!toolbar) return;
+  const cmds = { bold: 0, italic: 1, underline: 2 };
+  Object.entries(cmds).forEach(([cmd, idx]) => {
+    const btn = toolbar.querySelectorAll('button')[idx];
+    if (btn) btn.classList.toggle('active', document.queryCommandState(cmd));
+  });
+}
+
+function insertChecklistAdm(fieldKey) {
+  const el = document.getElementById('lv_' + fieldKey);
+  if (!el || el.tagName === 'INPUT') return;
+  el.focus();
+  document.execCommand('insertHTML', false, '<ul class="checklist"><li><input type="checkbox"> </li></ul>');
+}
+
+// ===================================================
+//  HELPERS
+// ===================================================
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Limpia HTML del editor: quita atributos de estilo inline basura (Google Docs, Word…)
+// Conserva: b, i, u, strong, em, ul, ol, li, br, p, div, input(checkbox)
+function sanitizeHtml(html) {
+  if (!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+
+  function cleanNode(node) {
+    if (node.nodeType === 3) return; // texto, ok
+    if (node.nodeType !== 1) { node.parentNode && node.parentNode.removeChild(node); return; }
+
+    const tag = node.tagName.toLowerCase();
+    // Tags permitidos
+    const allowed = new Set(['b','i','u','strong','em','ul','ol','li','br','p','div','span','input']);
+    if (!allowed.has(tag)) {
+      // Reemplazar por sus hijos
+      while (node.firstChild) node.parentNode.insertBefore(node.firstChild, node);
+      node.parentNode.removeChild(node);
+      return;
+    }
+
+    // Limpiar todos los atributos excepto los útiles
+    const attrsToRemove = [];
+    for (let i = 0; i < node.attributes.length; i++) {
+      const a = node.attributes[i];
+      // Conservar: type y checked en input, class en ul/li (checklist)
+      const keep = (tag === 'input' && (a.name === 'type' || a.name === 'checked'))
+                || (a.name === 'class' && (node.classList.contains('checklist')));
+      if (!keep) attrsToRemove.push(a.name);
+    }
+    attrsToRemove.forEach(a => node.removeAttribute(a));
+
+    // Limpiar hijos recursivamente (iterar copia para evitar mutación)
+    Array.from(node.childNodes).forEach(cleanNode);
+  }
+
+  Array.from(tmp.childNodes).forEach(cleanNode);
+  return tmp.innerHTML;
+}
+
+// ===================================================
+//  IMPORTACIÓN DESDE CATEDU (lógica de normativa-y-RA)
+// ===================================================
+
+// Datos de módulos SMR (IFC201) — igual que MODS_FALLBACK del fichero fuente
+const MODS_SMR = [
+  { c:"0221", n:"Montaje y mantenimiento de equipos", h:200, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=0221&ciclo=IFC201&from_ciclo=true", uc:"Cualificación profesional: Montaje y reparación de sistemas microinformáticos IFC298_2.\n—UC0953_2: Montar equipos microinformáticos.\n—UC0219_2: Instalar y configurar el software base en sistemas microinformáticos.\n—UC0954_2: Reparar y ampliar equipamiento microinformático." },
+  { c:"0222", n:"Sistemas operativos monopuesto", h:167, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=0222&ciclo=IFC201&from_ciclo=true", uc:"Cualificación profesional: Operación de sistemas informáticos IFC300_2.\n—UC0958_2: Ejecutar procedimientos de administración y mantenimiento en el software base." },
+  { c:"0223", n:"Aplicaciones ofimáticas", h:200, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=0223&ciclo=IFC201&from_ciclo=true", uc:"Cualificación profesional: Sistemas microinformáticos IFC078_2.\n—UC0221_2: Instalar, configurar y mantener paquetes informáticos.\n—UC0222_2: Facilitar al usuario la utilización de paquetes informáticos." },
+  { c:"0224", n:"Sistemas operativos en red", h:200, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=0224&ciclo=IFC201&from_ciclo=true", uc:"Cualificación profesional: Operación de sistemas informáticos IFC300_2.\n—UC0219_2: Instalar y configurar el software base en sistemas microinformáticos.\n—UC0957_2: Mantener y regular el subsistema físico en sistemas informáticos.\n—UC0958_2: Ejecutar procedimientos de administración y mantenimiento.\n—UC0959_2: Mantener la seguridad de los subsistemas físicos y lógicos." },
+  { c:"0225", n:"Redes locales", h:200, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=0225&ciclo=IFC201&from_ciclo=true", uc:"Cualificación profesional: Operación de redes departamentales IFC299_2.\n—UC0220_2: Instalar, configurar y verificar los elementos de la red local.\n—UC0955_2: Monitorizar los procesos de comunicaciones de la red local.\n—UC0956_2: Realizar los procesos de conexión entre redes privadas y públicas." },
+  { c:"0226", n:"Seguridad informática", h:133, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=0226&ciclo=IFC201&from_ciclo=true", uc:"Cualificación profesional: Operación de sistemas informáticos IFC300_2.\n—UC0959_2: Mantener la seguridad de los subsistemas físicos y lógicos en sistemas informáticos." },
+  { c:"0227", n:"Servicios en red", h:167, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=0227&ciclo=IFC201&from_ciclo=true", uc:"Cualificación profesional: Operación de redes departamentales IFC299_2.\n—UC0955_2: Monitorizar los procesos de comunicaciones de la red local.\n—UC0956_2: Realizar los procesos de conexión entre redes privadas y redes públicas." },
+  { c:"0228", n:"Aplicaciones web", h:200, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=0228&ciclo=IFC201&from_ciclo=true", uc:"Cualificación profesional: Sistemas microinformáticos IFC078_2.\n—UC0221_2: Instalar, configurar y mantener paquetes informáticos.\n—UC0222_2: Facilitar al usuario la utilización de paquetes informáticos." },
+  { c:"0156", n:"Inglés profesional", h:67, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=0156&ciclo=IFC201&from_ciclo=true", uc:"Módulo transversal de lengua extranjera. No tiene UCs asociadas en el Catálogo Nacional de Cualificaciones Profesionales." },
+  { c:"1664", n:"Digitalización aplicada a los sectores productivos", h:33, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=1664&ciclo=IFC201&from_ciclo=true", uc:"Módulo transversal de digitalización (LO 3/2022). Sin UCs asociadas." },
+  { c:"1708", n:"Sostenibilidad aplicada al sistema productivo", h:33, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=1708&ciclo=IFC201&from_ciclo=true", uc:"Módulo transversal de sostenibilidad (LO 3/2022). Sin UCs asociadas." },
+  { c:"1709", n:"Itinerario personal para la empleabilidad I", h:100, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=1709&ciclo=IFC201&from_ciclo=true", uc:"Módulo transversal (LO 3/2022). Sin UCs asociadas." },
+  { c:"1710", n:"Itinerario personal para la empleabilidad II", h:67, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=1710&ciclo=IFC201&from_ciclo=true", uc:"Módulo transversal (LO 3/2022). Sin UCs asociadas." },
+  { c:"1713", n:"Proyecto intermodular", h:67, urlRa:"https://centrosdocentes.catedu.es/awc/modulo.php?cod=1713&ciclo=IFC201&from_ciclo=true", uc:"Módulo de integración de resultados de aprendizaje (LO 3/2022). Sin UCs asociadas." }
+];
+
+const NORMA_SMR = {
+  estatal: [
+    "Real Decreto 532/2025, de 24 de junio, por el que se incluyen determinados estándares de competencias profesionales en el Catálogo Nacional de Estándares de Competencias Profesionales (BOE núm. 155, de 28 de junio de 2025).",
+    "Real Decreto 499/2024, de 21 de mayo, por el que se modifican determinados reales decretos por los que se establecen títulos de Formación Profesional de grado medio y se fijan sus enseñanzas mínimas.",
+    "Real Decreto 1691/2007, de 14 de diciembre, por el que se establece el título de Técnico en Sistemas Microinformáticos y Redes y se fijan sus enseñanzas mínimas (BOE núm. 15, de 17 de enero de 2008).",
+    "Real Decreto 659/2023, de 18 de julio, por el que se desarrolla la ordenación del Sistema de Formación Profesional.",
+    "Ley Orgánica 3/2022, de 31 de marzo, de Ordenación e Integración de la Formación Profesional."
+  ],
+  aragon: [
+    "Decreto 91/2024, de 5 de junio, del Gobierno de Aragón, por el que se establece la ordenación de la Formación Profesional del Grado D y E en Aragón.",
+    "ORDEN ECD/842/2024, de 25 de julio, por la que se regulan aspectos organizativos del currículo y se establecen los currículos de determinados Ciclos Formativos de Formación Profesional de Grado Medio para la Comunidad Autónoma de Aragón.",
+    "ORDEN de 26 de junio de 2009, de la Consejera de Educación, Cultura y Deporte, por la que se establece el currículo del título de Técnico en Sistemas Microinformáticos y Redes para la Comunidad Autónoma de Aragón (BOA núm. 135, de 15 de julio de 2009)."
+  ]
+};
+
+const PROXIES_LIST = [
+  u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://thingproxy.freeboard.io/fetch/${u}`
+];
+
+async function fetchViaProxyImport(url, timeoutMs = 10000) {
+  // 1. Intentar fetch directo (funciona con extensión CORS o si el servidor lo permite)
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), timeoutMs);
+    const r    = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (r.ok) {
+      const text = await r.text();
+      if (text?.trim().length > 200) return text;
+    }
+  } catch(_) {}
+
+  // 2. Fallback: proxies CORS
+  for (const makeUrl of PROXIES_LIST) {
+    try {
+      const ctrl = new AbortController();
+      const tid  = setTimeout(() => ctrl.abort(), timeoutMs);
+      const r    = await fetch(makeUrl(url), { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!r.ok) continue;
+      const text = await r.text();
+      try { const j = JSON.parse(text); if (j?.contents?.length > 200) return j.contents; } catch(_) {}
+      if (text?.trim().length > 200) return text;
+    } catch(_) { continue; }
+  }
+  return null;
+}
+
+// ===================================================
+//  IMPORTACIÓN DESDE CATEDU — Flujo Familia › Ciclo › Módulo › RAs
+// ===================================================
+
+const CATEDU_BASE = 'https://centrosdocentes.catedu.es/awc/public/pages/familias';
+
+// Estado del importador
+let importTarget = 'ra'; // 'ra' | 'ce' | 'new'
+let importSelectedMod = null; // { cod, nombre, horas, ciclo, urlRa }
+let importRaList = [];
+let importCurrentStep = 1;
+// Nombre del ciclo seleccionado en paso 2 (para rellenar el campo ciclo formativo)
+let importSelectedCicloNombre = '';
+
+// Cache para evitar fetches repetidos
+const importCache = {};
+
+// ---- Abrir / cerrar modal ----
+
+function openImportModal(target) {
+  if (!state.activeId) { showStatus('Primero selecciona un módulo', 'error'); return; }
+  importTarget = target || 'ra';
+  _resetImportModal();
+  document.getElementById('importModalTitle').textContent = '📥 Importar RAs/CEs desde CATEDU';
+  document.getElementById('importApplyBtn').textContent = '✔ Aplicar';
+  document.getElementById('importCateduModal').classList.remove('hidden');
+  importGoToStep(1);
+}
+
+// Abrir el importador en modo 'new' (desde el modal de nueva programación)
+function openImportForNew() {
+  importTarget = 'new';
+  _resetImportModal();
+  document.getElementById('importModalTitle').textContent = '🔍 Buscar módulo en CATEDU';
+  document.getElementById('importApplyBtn').textContent = '✔ Rellenar datos';
+  // Ocultar el modal de nueva programación temporalmente
+  document.getElementById('newModuleModal').classList.add('hidden');
+  document.getElementById('importCateduModal').classList.remove('hidden');
+  importGoToStep(1);
+}
+
+function _resetImportModal() {
+  importSelectedMod = null;
+  importRaList = [];
+  importSelectedCicloNombre = '';
+  document.getElementById('importApplyBtn').disabled = true;
+  setImportRaStatus('', '');
+  document.getElementById('importContextNote').style.display = 'none';
+}
+
+function closeImportModal() {
+  document.getElementById('importCateduModal').classList.add('hidden');
+  // Si estábamos en modo 'new', restaurar el modal de nueva programación
+  if (importTarget === 'new') {
+    document.getElementById('newModuleModal').classList.remove('hidden');
+  }
+}
+
+// ---- Navegación entre pasos ----
+
+function importGoToStep(n) {
+  importCurrentStep = n;
+  for (let i = 1; i <= 4; i++) {
+    const panel = document.getElementById(`importStep${i}`);
+    const badge = document.getElementById(`stepBadge${i}`);
+    panel.style.display = i === n ? '' : 'none';
+    badge.className = 'import-step' + (i === n ? ' active' : i < n ? ' done' : '');
+  }
+  if (n === 1) loadFamilias();
+}
+
+function importGoBack(toStep) {
+  importGoToStep(toStep);
+}
+
+// ---- PASO 1: Familias ----
+
+async function loadFamilias() {
+  const el = document.getElementById('familiasList');
+  const st = document.getElementById('statusFamilias');
+  if (importCache.familias) { renderFamilias(importCache.familias); return; }
+  el.innerHTML = '';
+  st.innerHTML = '<div class="spinner-sm"></div> Cargando familias…';
+  const url = `${CATEDU_BASE}/index.php`;
+  const html = await fetchViaProxyImport(url);
+  if (!html) { st.textContent = '✗ No se pudieron cargar las familias. Comprueba la conexión.'; return; }
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  // Parsear tarjetas/enlaces de familias
+  const familias = [];
+  // Buscar enlaces que contengan ciclos.php?familia=XXX
+  doc.querySelectorAll('a[href*="ciclos.php?familia="]').forEach(a => {
+    const m = a.href.match(/familia=([A-Z0-9]+)/);
+    if (!m) return;
+    const cod = m[1];
+    if (familias.find(f => f.cod === cod)) return;
+    // Intentar obtener nombre de la tarjeta contenedora o texto del enlace
+    const card = a.closest('.card, .familia-card, .col, li, td') || a;
+    const nombre = card.querySelector('h5,h4,h3,.card-title,.familia-nombre,strong')?.textContent?.trim()
+      || a.textContent.trim()
+      || cod;
+    familias.push({ cod, nombre: nombre.replace(/\s+/g,' ') });
+  });
+  if (!familias.length) { st.textContent = '✗ No se detectaron familias en la página. Puede que la estructura de CATEDU haya cambiado.'; return; }
+  importCache.familias = familias;
+  renderFamilias(familias);
+}
+
+function renderFamilias(familias) {
+  const st = document.getElementById('statusFamilias');
+  const el = document.getElementById('familiasList');
+  st.textContent = `${familias.length} familias disponibles`;
+  el.innerHTML = familias.map(f => `
+    <div class="import-grid-item" onclick="selectFamilia('${escHtml(f.cod)}','${escHtml(f.nombre.replace(/'/g,"&#39;"))}')">
+      <div class="ig-code">${escHtml(f.cod)}</div>
+      <div class="ig-name">${escHtml(f.nombre)}</div>
+    </div>`).join('');
+}
+
+// ---- PASO 2: Ciclos ----
+
+async function selectFamilia(cod, nombre) {
+  importGoToStep(2);
+  const el = document.getElementById('ciclosList');
+  const st = document.getElementById('statusCiclos');
+  el.innerHTML = '';
+  st.innerHTML = `<div class="spinner-sm"></div> Cargando ciclos de <strong>${escHtml(nombre)}</strong>…`;
+  const cacheKey = `ciclos_${cod}`;
+  if (importCache[cacheKey]) { renderCiclos(importCache[cacheKey]); return; }
+  const url = `${CATEDU_BASE}/ciclos.php?familia=${encodeURIComponent(cod)}`;
+  const html = await fetchViaProxyImport(url);
+  if (!html) { st.textContent = '✗ No se pudieron cargar los ciclos.'; return; }
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const ciclos = [];
+  doc.querySelectorAll('a[href*="info_ciclo.php?codciclo="]').forEach(a => {
+    const m = (a.href || a.getAttribute('href') || '').match(/codciclo=([A-Z0-9]+)/);
+    if (!m) return;
+    const codCiclo = m[1];
+    if (ciclos.find(c => c.cod === codCiclo)) return;
+    const card = a.closest('.card, .ciclo-card, .col, li, tr, td') || a;
+    const nombre = card.querySelector('h5,h4,h3,.card-title,strong')?.textContent?.trim()
+      || a.textContent.trim() || codCiclo;
+    // Intentar capturar grado (GM, GS, PB…)
+    const gradoEl = card.querySelector('.badge, .grado, small');
+    const grado = gradoEl?.textContent?.trim() || '';
+    ciclos.push({ cod: codCiclo, nombre: nombre.replace(/\s+/g,' '), grado });
+  });
+  if (!ciclos.length) { st.textContent = '✗ No se detectaron ciclos. La estructura de CATEDU puede haber cambiado.'; return; }
+  importCache[cacheKey] = ciclos;
+  renderCiclos(ciclos);
+}
+
+function renderCiclos(ciclos) {
+  const st = document.getElementById('statusCiclos');
+  const el = document.getElementById('ciclosList');
+  st.textContent = `${ciclos.length} ciclos disponibles`;
+  el.innerHTML = ciclos.map(c => `
+    <div class="import-list-item" onclick="selectCiclo('${escHtml(c.cod)}','${escHtml(c.nombre.replace(/'/g,"&#39;"))}')">
+      <span class="il-code">${escHtml(c.cod)}</span>
+      <span class="il-name">${escHtml(c.nombre)}</span>
+      ${c.grado ? `<span class="il-meta">${escHtml(c.grado)}</span>` : ''}
+    </div>`).join('');
+}
+
+// ---- PASO 3: Módulos ----
+
+async function selectCiclo(cod, nombre) {
+  importGoToStep(3);
+  importSelectedCicloNombre = `${nombre} (${cod})`; // guardar para relleno automático
+  const el = document.getElementById('modulosList');
+  const st = document.getElementById('statusModulos');
+  el.innerHTML = '';
+  st.innerHTML = `<div class="spinner-sm"></div> Cargando módulos de <strong>${escHtml(nombre)}</strong>…`;
+  const cacheKey = `modulos_${cod}`;
+  if (importCache[cacheKey]) { renderModulosCatedu(importCache[cacheKey], cod); return; }
+  const url = `${CATEDU_BASE}/info_ciclo.php?codciclo=${encodeURIComponent(cod)}`;
+  const html = await fetchViaProxyImport(url);
+  if (!html) { st.textContent = '✗ No se pudieron cargar los módulos.'; return; }
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const modulos = [];
+
+  // Recorremos TODOS los enlaces que apuntan a modulo.php
+  doc.querySelectorAll('a[href*="modulo.php"]').forEach(a => {
+    const href = a.getAttribute('href') || '';
+    const mCod   = href.match(/[?&]cod=([A-Z0-9]+)/i);
+    const mCiclo = href.match(/[?&]ciclo=([A-Z0-9]+)/);
+    if (!mCod) return;
+    const codMod   = mCod[1];
+    const cicloCode = mCiclo ? mCiclo[1] : cod;
+    if (modulos.find(m => m.cod === codMod)) return; // dedup
+
+    // ── Estrategia 1: fila de tabla ──
+    // En info_ciclo.php los módulos van en <tr>:
+    //   col1=código, col2=nombre, col3=horas/semana, col4=horas totales curso
+    // Nos quedamos con el número MÁS GRANDE (horas totales), no el primero.
+    let nombreMod = '';
+    let horasSem    = null;   // horas por semana (el número menor)
+    let horasTotales = null;  // horas totales del curso (el número mayor)
+    const tr = a.closest('tr');
+    if (tr) {
+      const tds = tr.querySelectorAll('td');
+      if (tds.length >= 2) {
+        const nums = [];
+        for (let i = 0; i < tds.length; i++) {
+          const txt = tds[i].textContent.trim().replace(/\s+/g,' ');
+          if (/^[A-Z]?\d{3,4}$/i.test(txt)) continue; // es el código (0221, A127…)
+          // Celda que solo contiene un número (horas/sem o horas totales)
+          const soloNum = txt.match(/^(\d+)\s*h?$/i);
+          if (soloNum) { nums.push(parseInt(soloNum[1])); continue; }
+          if (txt.length > 4 && !nombreMod) nombreMod = txt;
+        }
+        if (nums.length >= 2) {
+          // Con dos números: el menor es h/sem, el mayor es totales
+          horasSem     = Math.min(...nums);
+          horasTotales = Math.max(...nums);
+        } else if (nums.length === 1) {
+          // Solo un número: si es pequeño (<= 30) es h/sem, si es grande es totales
+          if (nums[0] <= 30) horasSem = nums[0];
+          else horasTotales = nums[0];
+        }
+        // Fallback: buscar cualquier número entre 10 y 1500
+        if (!horasTotales) {
+          tds.forEach(td => {
+            const n = parseInt(td.textContent.trim());
+            if (n > 10 && n <= 1500 && (!horasTotales || n > horasTotales)) horasTotales = n;
+          });
+        }
+      }
+    }
+
+    // ── Estrategia 2: texto del propio enlace ──
+    if (!nombreMod) {
+      const linkText = a.textContent.trim().replace(/\s+/g,' ');
+      // Quitar el código al inicio (numérico o alfanumérico: 0221, A127, etc.)
+      nombreMod = linkText.replace(/^[A-Z]?\d{3,4}[\s.\-]+/i, '').trim() || linkText;
+    }
+
+    // ── Estrategia 3: elemento hermano o padre con texto ──
+    if (!nombreMod || nombreMod === codMod) {
+      const parent = a.parentElement;
+      if (parent) {
+        const clone = parent.cloneNode(true);
+        clone.querySelectorAll('a').forEach(x => x.remove());
+        const resto = clone.textContent.trim().replace(/\s+/g,' ');
+        if (resto.length > 4) nombreMod = resto;
+      }
+    }
+
+    nombreMod = nombreMod || `Módulo ${codMod}`;
+    const urlRa = `https://centrosdocentes.catedu.es/awc/modulo.php?cod=${codMod}&ciclo=${cicloCode}&from_ciclo=true`;
+    modulos.push({ cod: codMod, nombre: nombreMod.trim(), horasSem, horas: horasTotales, urlRa, ciclo: cicloCode });
+  });
+
+  if (!modulos.length) { st.textContent = '✗ No se detectaron módulos. La estructura de CATEDU puede haber cambiado.'; return; }
+  // Ordenar: numéricos primero, luego alfanuméricos
+  modulos.sort((a, b) => {
+    const na = parseInt(a.cod) || 0, nb = parseInt(b.cod) || 0;
+    if (na && nb) return na - nb;
+    return a.cod.localeCompare(b.cod);
+  });
+  importCache[cacheKey] = modulos;
+  renderModulosCatedu(modulos, cod);
+}
+
+function renderModulosCatedu(modulos, ciclo) {
+  const st = document.getElementById('statusModulos');
+  const el = document.getElementById('modulosList');
+  st.textContent = `${modulos.length} módulos disponibles`;
+  el.innerHTML = modulos.map(m => `
+    <div class="import-list-item" onclick='selectModuloCatedu(${JSON.stringify(m)})'>
+      <span class="il-code">${escHtml(m.cod)}</span>
+      <span class="il-name">${escHtml(m.nombre)}</span>
+      ${m.horasSem    ? `<span class="il-meta">${m.horasSem}h/sem</span>` : ''}
+      ${m.horas       ? `<span class="il-meta">${m.horas}h tot.</span>`   : ''}
+    </div>`).join('');
+}
+
+// ---- PASO 4: Importar RAs ----
+
+function selectModuloCatedu(mod) {
+  importSelectedMod = mod;
+  importRaList = [];
+  setImportRaStatus('', '');
+
+  document.getElementById('importModTitle').textContent = `${mod.cod}. ${mod.nombre}`;
+  const horasLabel = [mod.horasSem ? `${mod.horasSem}h/sem` : '', mod.horas ? `${mod.horas}h totales` : ''].filter(Boolean).join(' · ');
+  document.getElementById('importModMeta').textContent =
+    [horasLabel, `Ciclo: ${importSelectedCicloNombre || mod.ciclo}`].filter(Boolean).join(' · ');
+
+  const note = document.getElementById('importContextNote');
+  const applyBtn = document.getElementById('importApplyBtn');
+
+  if (importTarget === 'new') {
+    document.getElementById('step4Title').textContent = 'Datos del módulo';
+    applyBtn.textContent = '✔ Rellenar datos';
+    // En modo 'new' se habilita SIEMPRE al seleccionar — los RAs son opcionales
+    applyBtn.disabled = false;
+    note.innerHTML = `📋 Se rellenarán: <strong>nombre, código, horas y ciclo</strong>.<br>
+      Pulsa primero <em>⬇ Cargar RAs</em> si también quieres importar Resultados de Aprendizaje y CEs.`;
+  } else if (importTarget === 'ra') {
+    document.getElementById('step4Title').textContent = 'Importar RAs y CEs';
+    applyBtn.textContent = '✔ Aplicar';
+    applyBtn.disabled = true;
+    note.innerHTML = '📋 Se importarán los <strong>Resultados de Aprendizaje</strong> (sin CEs) al campo "Resultados de aprendizaje" de la sección b).';
+  } else {
+    document.getElementById('step4Title').textContent = 'Importar RAs y CEs';
+    applyBtn.textContent = '✔ Aplicar';
+    applyBtn.disabled = true;
+    note.innerHTML = '📋 Se importarán los <strong>Resultados de Aprendizaje con sus Criterios de Evaluación</strong> codificados al campo "Criterios de evaluación del módulo" de la sección b).';
+  }
+  note.style.display = 'block';
+
+  importGoToStep(4);
+}
+
+function setImportRaStatus(msg, cls) {
+  const el = document.getElementById('importRaStatus');
+  el.textContent = msg;
+  el.className = 'import-ra-status' + (msg ? ' show ' + cls : '');
+}
+
+// Parsear RAs desde HTML de CATEDU
+// ── Parser HTML: estructura de tarjetas CATEDU ──
+function parseRAsFromDocImport(doc) {
+  const result = [];
+
+  // Estrategia A: .ra-card (estructura conocida de CATEDU)
+  doc.querySelectorAll('.ra-card').forEach(card => {
+    const numEl = card.querySelector('.text-muted');
+    const numMatch = (numEl?.textContent.trim()||'').match(/\(?(RA\s*\d+)\)?/i);
+    const num = numMatch ? numMatch[1].replace(/\s+/g,'').toUpperCase() : null;
+    if (!num) return;
+
+    // Contenido del RA: <strong> sin el span .text-muted
+    let contenido = '';
+    const strongEl = card.querySelector('strong');
+    if (strongEl) {
+      const cl = strongEl.cloneNode(true);
+      cl.querySelectorAll('.text-muted').forEach(e => e.remove());
+      contenido = cl.textContent.trim().replace(/\s+/g,' ');
+    }
+    if (!contenido) {
+      const pEl = card.querySelector('p, .ra-titulo, h5, h4');
+      if (pEl) {
+        const cl = pEl.cloneNode(true);
+        cl.querySelectorAll('.text-muted, small').forEach(e => e.remove());
+        contenido = cl.textContent.trim().replace(/\s+/g,' ');
+      }
+    }
+    if (!contenido) return;
+
+    // CEs: li.ce-item o cualquier li dentro del card
+    const ces = [];
+    const ceItems = card.querySelectorAll('li.ce-item, li');
+    ceItems.forEach(li => {
+      const letraEl = li.querySelector('.ce-letter, .badge, b, strong');
+      let letra = letraEl?.textContent.trim().replace(/[^a-z)]/gi,'') || '';
+      // Si la letra viene como "a)" quedarnos solo con "a)"
+      if (!/[a-z]\)/i.test(letra)) {
+        const m = li.textContent.trim().match(/^([a-z]\))\s/i);
+        letra = m ? m[1] : letra;
+      }
+      const cl = li.cloneNode(true);
+      cl.querySelectorAll('.ce-letter, .badge').forEach(e => e.remove());
+      let desc = cl.textContent.trim().replace(/\s+/g,' ');
+      // Quitar posible "a) " del inicio si quedó
+      desc = desc.replace(/^[a-z]\)\s*/i, '').trim();
+      if (desc.length > 3) ces.push({ num: letra || '–', desc });
+    });
+
+    result.push({ num, contenido, ces });
+  });
+
+  if (result.length) return result;
+
+  // Estrategia B: buscar por encabezados RA dentro del DOM (tablas u otros layouts)
+  const allText = doc.body?.innerHTML || '';
+  const raHeadings = doc.querySelectorAll('[class*="ra"], [id*="ra"], h3, h4, h5, .card-header, .panel-heading');
+  raHeadings.forEach(el => {
+    const txt = el.textContent.trim();
+    const m = txt.match(/\b(RA\s*\d+)\b/i);
+    if (!m) return;
+    const num = m[1].replace(/\s+/g,'').toUpperCase();
+    if (result.find(r => r.num === num)) return;
+    // Buscar contenido en el siguiente sibling o dentro del mismo contenedor
+    let contenido = txt.replace(m[0],'').replace(/^[\s.\-:]+/,'').trim();
+    const container = el.closest('.card, .panel, section, .ra-block') || el.parentElement;
+    const ces = [];
+    if (container) {
+      container.querySelectorAll('li, .ce-item').forEach(li => {
+        const liTxt = li.textContent.trim().replace(/\s+/g,' ');
+        const cm = liTxt.match(/^([a-z]\))\s*(.+)/i);
+        if (cm) ces.push({ num: cm[1], desc: cm[2] });
+      });
+    }
+    if (contenido.length > 3) result.push({ num, contenido, ces });
+  });
+
+  return result;
+}
+
+// ── Parser texto plano: cuando el proxy devuelve solo texto ──
+function parseRAsFromTextImport(rawText) {
+  // Limpiar el texto: quitar tags HTML residuales y normalizar espacios
+  const text = rawText
+    .replace(/<[^>]+>/g, ' ')         // tags HTML residuales
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\t/g, ' ')
+    .replace(/\r/g, '\n')
+    .replace(/[ ]{2,}/g, ' ');
+
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const result = [];
+  let currentRA = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Detectar inicio de RA: "RA1", "RA 1", "RA1.", "RA1:" o "Resultado de aprendizaje 1"
+    const raMatch = line.match(/^(?:RA\s*(\d+)|Resultado(?:s)?\s+de\s+aprendizaje\s+(\d+))[\s.:–-]*(.*)$/i);
+    if (raMatch) {
+      if (currentRA) result.push(currentRA);
+      const raNum = raMatch[1] || raMatch[2];
+      let contenido = (raMatch[3] || '').trim();
+      // Si el contenido está vacío, tomar la siguiente línea no vacía que no sea otro RA/CE
+      if (!contenido && i + 1 < lines.length) {
+        const next = lines[i + 1];
+        if (!next.match(/^RA\s*\d+/i) && !next.match(/^[a-z]\)/i)) {
+          contenido = next;
+          i++;
+        }
+      }
+      currentRA = { num: `RA${raNum}`, contenido, ces: [] };
+      continue;
+    }
+
+    // Detectar CE: "a) texto", "a.- texto", "CE1.a) texto"
+    if (currentRA) {
+      // Patrón amplio: letras sueltas con separador al inicio de línea
+      const ceMatch = line.match(/^(?:CE\d+\.)?([a-z])[).\-]\s*(.+)$/i);
+      if (ceMatch) {
+        const letra = ceMatch[1].toLowerCase() + ')';
+        const desc = ceMatch[2].trim();
+        if (desc.length > 3) currentRA.ces.push({ num: letra, desc });
+        continue;
+      }
+
+      // CE que continúa en la misma línea con número largo: "1.a) texto"
+      const ceMatch2 = line.match(/^\d+\.([a-z])[)]\s*(.+)$/i);
+      if (ceMatch2) {
+        const letra = ceMatch2[1].toLowerCase() + ')';
+        const desc = ceMatch2[2].trim();
+        if (desc.length > 3) currentRA.ces.push({ num: letra, desc });
+        continue;
+      }
+    }
+  }
+
+  if (currentRA) result.push(currentRA);
+  return result;
+}
+
+async function doImportRas() {
+  if (!importSelectedMod?.urlRa) { setImportRaStatus('No hay URL del módulo disponible.', 'err'); return; }
+  setImportRaStatus('Consultando CATEDU…', 'loading');
+
+  const html = await fetchViaProxyImport(importSelectedMod.urlRa, 15000);
+  if (!html) {
+    setImportRaStatus('No se pudo conectar con CATEDU. Comprueba la conexión o activa la extensión CORS Unblock.', 'err');
+    return;
+  }
+
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    // Intentar parseo HTML estructurado primero
+    let raList = parseRAsFromDocImport(doc);
+
+    // Si no hay resultados, intentar con el texto completo (limpiado de tags)
+    if (!raList.length) {
+      raList = parseRAsFromTextImport(html); // pasar el HTML crudo — el parser limpia los tags
+    }
+
+    // Último recurso: texto plano del body
+    if (!raList.length) {
+      raList = parseRAsFromTextImport(doc.body?.innerText || doc.body?.textContent || '');
+    }
+
+    if (!raList.length) {
+      setImportRaStatus('No se detectaron RAs en este módulo. La estructura de CATEDU puede haber cambiado.', 'err');
+      return;
+    }
+
+    // Contar CEs totales para el mensaje
+    const totalCEs = raList.reduce((acc, ra) => acc + (ra.ces?.length || 0), 0);
+    importRaList = raList;
+    setImportRaStatus(
+      `✔ ${raList.length} RAs${totalCEs ? ` y ${totalCEs} CEs` : ''} importados correctamente. Pulsa "Aplicar" para guardarlos.`,
+      'ok'
+    );
+    document.getElementById('importApplyBtn').disabled = false;
+  } catch(e) {
+    setImportRaStatus(`Error al procesar la respuesta: ${e.message}`, 'err');
+  }
+}
+
+function raListToHtml(raList, includeCes = true) {
+  return raList.map((ra, idx) => {
+    const raNum = ra.num?.match(/\d+/)?.[0] || String(idx + 1);
+    const raLine = `<p><strong>${escHtml(ra.num)}. ${escHtml(ra.contenido)}</strong></p>`;
+    if (!includeCes || !ra.ces?.length) return raLine;
+    const cesLines = ra.ces.map(ce => {
+      const letra = ce.num?.replace(/[^a-z]/gi, '').toLowerCase() || '?';
+      const codigo = `CE${raNum}.${letra})`;
+      return `<p><strong>${escHtml(codigo)}</strong> ${escHtml(ce.desc)}</p>`;
+    }).join('\n');
+    return raLine + '\n' + cesLines;
+  }).join('\n');
+}
+
+function applyImport() {
+  if (!importSelectedMod) return;
+
+  // ── Modo 'new': rellenar el formulario de nueva programación ──
+  if (importTarget === 'new') {
+    const mod = importSelectedMod;
+    const cicloLabel = importSelectedCicloNombre || mod.ciclo;
+
+    // Rellenar campos básicos siempre
+    document.getElementById('newModuleName').value     = mod.nombre   || '';
+    document.getElementById('newModuleCode').value     = mod.cod      || '';
+    document.getElementById('newModuleHoras').value    = mod.horas    ? String(mod.horas)    : '';
+    document.getElementById('newModuleHorasSem').value = mod.horasSem ? String(mod.horasSem) : '';
+    document.getElementById('newModuleCycle').value    = cicloLabel   || '';
+
+    // Guardar RAs si se cargaron (opcional)
+    console.log('[applyImport new] importRaList.length:', importRaList.length);
+    window._pendingCateduRaList = importRaList.length ? importRaList : null;
+    console.log('[applyImport new] _pendingCateduRaList set:', window._pendingCateduRaList?.length ?? 'null');
+
+    // Preview
+    const totalCEs = importRaList.reduce((a, r) => a + (r.ces?.length || 0), 0);
+    const horasPreview = [mod.horasSem ? `${mod.horasSem}h/sem` : '', mod.horas ? `${mod.horas}h totales` : ''].filter(Boolean).join(' · ');
+    document.getElementById('newModCateduPreviewText').innerHTML =
+      `<strong>${mod.cod}</strong> · ${mod.nombre}` +
+      (horasPreview ? ` · ${horasPreview}` : '') +
+      (cicloLabel   ? `<br>${cicloLabel}`   : '') +
+      (importRaList.length ? `<br><span style="color:#1a7a3a">✔ ${importRaList.length} RAs${totalCEs ? ` y ${totalCEs} CEs` : ''} listos para importar</span>` : '');
+    document.getElementById('newModCateduPreview').style.display = 'block';
+
+    closeImportModal();
+    document.getElementById('newModuleModal').classList.remove('hidden');
+    document.getElementById('newModuleCourse').focus();
+    return;
+  }
+
+  // ── Modo normal: módulo activo ya existe ──
+  if (!state.activeId) return;
+  if (!importRaList.length) { showStatus('Carga primero los RAs pulsando "Cargar RAs desde CATEDU"', 'error'); return; }
+  const data = state.modules[state.activeId].data;
+  if (importTarget === 'ra') {
+    data.ra_lista = raListToHtml(importRaList, false);
+    const rteEl = document.getElementById('rte_ra_lista');
+    if (rteEl) rteEl.innerHTML = data.ra_lista;
+  } else {
+    data.criterios_evaluacion = raListToHtml(importRaList, true);
+    const rteEl = document.getElementById('rte_criterios_evaluacion');
+    if (rteEl) rteEl.innerHTML = data.criterios_evaluacion;
+  }
+  saveState();
+  closeImportModal();
+  showStatus('✔ Datos importados desde CATEDU');
+}
+
+// Eventos del buscador del modal
+document.addEventListener('DOMContentLoaded', () => {});
+
+// ===================================================
+//  AUTENTICACIÓN — Login / Logout
+// ===================================================
+
+async function doLogin() {
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl    = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  if (!username || !password) { errEl.textContent = 'Introduce usuario y contraseña.'; errEl.style.display='block'; return; }
+  try {
+    const { user } = await Auth.login(username, password);
+    await initApp(user);
+  } catch(e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function doLogout() {
+  try { await Auth.logout(); } catch(_) {}
+  // Limpiar estado y volver al login
+  currentUser   = null;
+  adminLoggedIn = false;
+  state         = { modules: {}, activeId: null };
+  renderModulesList();
+  renderMainContent();
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginUsername').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+// ===================================================
+//  INIT — Arranque de la aplicación
+// ===================================================
+
+async function initApp(user) {
+  currentUser   = user;
+  adminLoggedIn = user.role === 'admin';
+
+  // Ocultar pantalla de login
+  document.getElementById('loginScreen').style.display = 'none';
+
+  // Mostrar nombre de usuario en el header
+  const infoEl = document.getElementById('headerUserInfo');
+  if (infoEl) infoEl.textContent = `${user.nombre || user.username} (${user.role})`;
+
+  // Mostrar/ocultar botón admin según rol
+  const adminBtn = document.querySelector('button[onclick="openAdmin()"]');
+  if (adminBtn) adminBtn.style.display = adminLoggedIn ? '' : 'none';
+
+  // Cargar configuración global local del admin si existe
+  try {
+    const localCfg = JSON.parse(localStorage.getItem('fp_admin_config_local') || '{}');
+    if (localCfg.globalValues) adminConfig.globalValues = { ...adminConfig.globalValues, ...localCfg.globalValues };
+  } catch(_) {}
+
+  // Si el usuario es docente, precargar su perfil de ciclo para aplicar locks
+  if (user.cicloId) {
+    try {
+      const { profile } = await Profiles.get(user.cicloId);
+      (profile.locked_fields || []).forEach(f => {
+        adminConfig.lockedFields[f.key]  = true;
+        adminConfig.lockedValues[f.key]  = f.value;
+      });
+    } catch(_) {}
+  }
+
+  // Cargar lista de módulos del usuario
+  await loadState();
+  renderModulesList();
+  renderMainContent();
+}
+
+// Intentar restaurar sesión al cargar la página (cookie JWT válida)
+(async () => {
+  try {
+    const { user } = await Auth.me();
+    await initApp(user);
+  } catch(_) {
+    // Sin sesión activa → mostrar login
+    document.getElementById('loginScreen').style.display = 'flex';
+    setTimeout(() => document.getElementById('loginUsername')?.focus(), 100);
+  }
+})();
+</script>
+</body>
+</html>
