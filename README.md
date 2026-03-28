@@ -96,8 +96,8 @@ programaciones-fp/
 
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/tu-usuario/programaciones-fp.git
-cd programaciones-fp
+git clone https://github.com/luisjsolsona/Programaciones-Didacticas-FP-Aragon.git
+cd Programaciones-Didacticas-FP-Aragon
 
 # 2. (Recomendado) Cambiar contraseña y secreto JWT antes de arrancar
 #    Edita docker-compose.yml y modifica las variables de entorno
