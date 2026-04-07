@@ -1091,11 +1091,11 @@ const Modules = {
                     style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
                 </div>
                 <div class="field">
-                  <label class="field-label">Ciclo asignado</label>
-                  <select id="newUserCiclo"
-                    style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
-                    <option value="">— Sin ciclo —</option>
-                  </select>
+                  <label class="field-label">Ciclos asignados</label>
+                  <div id="newUserCiclos"
+                    style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;max-height:110px;overflow-y:auto;background:white">
+                    <span style="color:var(--text-muted);font-size:12px">Cargando ciclos…</span>
+                  </div>
                 </div>
               </div>
               <div style="display:flex;gap:8px">
@@ -1781,11 +1781,9 @@ async function createModule() {
   data.docente = docente || currentUser?.nombre || '';
 
   // RAs/CEs importados desde CATEDU
-  console.log('[createModule] _pendingCateduRaList:', window._pendingCateduRaList?.length ?? 'null/undefined');
   if (window._pendingCateduRaList?.length) {
     data.ra_lista             = raListToHtml(window._pendingCateduRaList, false);
     data.criterios_evaluacion = raListToHtml(window._pendingCateduRaList, true);
-    console.log('[createModule] ra_lista length:', data.ra_lista?.length, 'criterios length:', data.criterios_evaluacion?.length);
     window._pendingCateduRaList = null;
   }
 
@@ -1814,12 +1812,8 @@ async function createModule() {
 
     // Recargar lista del sidebar, luego restaurar el módulo completo
     await loadState();
-    console.log('[createModule] module.id:', module.id, typeof module.id);
-    console.log('[createModule] keys after loadState:', JSON.stringify(Object.keys(state.modules)));
     state.modules[module.id] = fullModule;
-    console.log('[createModule] ra_lista exists:', !!fullModule.data.ra_lista, 'state.modules[module.id].data.ra_lista exists:', !!state.modules[module.id]?.data?.ra_lista);
     state.activeId = module.id;
-    console.log('[createModule] state.activeId:', state.activeId, 'module found:', !!state.modules[state.activeId]);
 
     renderModulesList();
     renderMainContent();
@@ -1834,7 +1828,6 @@ async function createModule() {
 // ===================================================
 function renderMainContent() {
   const main = document.getElementById('mainContent');
-  console.log('[renderMainContent] activeId:', state.activeId, 'module:', !!state.modules[state.activeId], 'ra_lista:', !!state.modules[state.activeId]?.data?.ra_lista);
   if (!state.activeId || !state.modules[state.activeId]) {
     main.innerHTML = `<div class="empty-state">
       <div class="icon">📋</div>
@@ -2871,11 +2864,16 @@ async function adminLoadUsersAndProfiles() {
         profiles.map(p => `<option value="${p.id}">${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('');
     }
 
-    // Rellenar selector de ciclo en formulario de nuevo usuario
-    const newUserCicloSel = document.getElementById('newUserCiclo');
-    if (newUserCicloSel) {
-      newUserCicloSel.innerHTML = '<option value="">— Sin ciclo —</option>' +
-        profiles.map(p => `<option value="${p.id}">${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('');
+    // Rellenar checkboxes de ciclos en formulario de nuevo usuario
+    const newUserCiclosDiv = document.getElementById('newUserCiclos');
+    if (newUserCiclosDiv) {
+      newUserCiclosDiv.innerHTML = profiles.length
+        ? profiles.map(p => `
+            <label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer">
+              <input type="checkbox" name="newUserCiclo" value="${p.id}">
+              <span>${escHtml(p.cod)} — ${escHtml(p.nombre)}</span>
+            </label>`).join('')
+        : '<span style="color:var(--text-muted);font-size:12px">No hay ciclos disponibles.</span>';
     }
 
     // Render lista de usuarios
@@ -2890,7 +2888,7 @@ async function adminLoadUsersAndProfiles() {
               <div>
                 <span style="font-size:13px;font-weight:500">${escHtml(u.nombre || u.username)}</span>
                 <span style="font-size:11px;color:var(--text-muted);margin-left:6px">@${escHtml(u.username)}</span>
-                ${u.cicloNombre ? `<span style="font-size:11px;color:var(--navy);margin-left:6px">· ${escHtml(u.cicloCod)}</span>` : ''}
+                ${(u.ciclos || []).map(c => `<span style="font-size:11px;color:var(--navy);margin-left:6px">· ${escHtml(c.cod)}</span>`).join('')}
                 ${!u.activo ? '<span style="font-size:11px;color:var(--danger);margin-left:6px">· Inactivo</span>' : ''}
               </div>
               <div style="display:flex;gap:6px">
@@ -2908,12 +2906,18 @@ async function adminLoadUsersAndProfiles() {
                     style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;width:100%">
                 </div>
                 <div class="field">
-                  <label class="field-label" style="font-size:11px">Ciclo asignado</label>
-                  <select id="editUserCiclo_${u.id}"
-                    style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;width:100%">
-                    <option value="">— Sin ciclo —</option>
-                    ${profiles.map(p => `<option value="${p.id}" ${p.id === u.ciclo_id ? 'selected' : ''}>${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('')}
-                  </select>
+                  <label class="field-label" style="font-size:11px">Ciclos asignados</label>
+                  <div id="editUserCiclos_${u.id}"
+                    style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;max-height:110px;overflow-y:auto;background:white">
+                    ${profiles.length
+                      ? profiles.map(p => `
+                          <label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer">
+                            <input type="checkbox" name="editUserCiclo_${u.id}" value="${p.id}"
+                              ${(u.ciclos || []).some(c => c.id === p.id) ? 'checked' : ''}>
+                            <span>${escHtml(p.cod)} — ${escHtml(p.nombre)}</span>
+                          </label>`).join('')
+                      : '<span style="color:var(--text-muted);font-size:12px">No hay ciclos disponibles.</span>'}
+                  </div>
                 </div>
               </div>
               <div class="fields-row" style="margin-bottom:10px">
@@ -3005,14 +3009,17 @@ async function adminCreateUser() {
   const username = document.getElementById('newUserUsername').value.trim();
   const nombre   = document.getElementById('newUserNombre').value.trim();
   const password = document.getElementById('newUserPwd').value;
-  const cicloId  = document.getElementById('newUserCiclo').value || null;
-  const st       = document.getElementById('adminNewUserStatus');
+  const cicloIds = Array.from(
+    document.querySelectorAll('#newUserCiclos input[type=checkbox]:checked')
+  ).map(cb => parseInt(cb.value));
+  const st = document.getElementById('adminNewUserStatus');
   if (!username || !password) { st.textContent = 'Usuario y contraseña son obligatorios.'; st.style.color='var(--danger)'; return; }
   try {
-    await Users.create({ username, nombre, password, cicloId: cicloId ? parseInt(cicloId) : null });
+    await Users.create({ username, nombre, password, cicloIds });
     st.textContent = `✔ Docente "${username}" creado correctamente.`;
     st.style.color = 'var(--success)';
     ['newUserUsername','newUserNombre','newUserPwd'].forEach(id => document.getElementById(id).value = '');
+    document.querySelectorAll('#newUserCiclos input[type=checkbox]').forEach(cb => cb.checked = false);
     adminLoadUsersAndProfiles();
   } catch(e) { st.textContent = e.message; st.style.color = 'var(--danger)'; }
 }
@@ -3024,7 +3031,9 @@ function adminToggleEditUser(id) {
 
 async function adminSaveUser(id) {
   const nombre   = document.getElementById(`editUserNombre_${id}`)?.value.trim();
-  const cicloId  = document.getElementById(`editUserCiclo_${id}`)?.value || null;
+  const cicloIds = Array.from(
+    document.querySelectorAll(`#editUserCiclos_${id} input[type=checkbox]:checked`)
+  ).map(cb => parseInt(cb.value));
   const password = document.getElementById(`editUserPwd_${id}`)?.value.trim();
   const st       = document.getElementById(`editUserStatus_${id}`);
 
@@ -3043,7 +3052,7 @@ async function adminSaveUser(id) {
   try {
     await Users.update(id, {
       nombre:  nombre  || null,
-      cicloId: cicloId ? parseInt(cicloId) : null,
+      cicloIds,
     });
   } catch(e) {
     errors.push('Datos: ' + e.message);
@@ -3909,9 +3918,7 @@ function applyImport() {
     document.getElementById('newModuleCycle').value    = cicloLabel   || '';
 
     // Guardar RAs si se cargaron (opcional)
-    console.log('[applyImport new] importRaList.length:', importRaList.length);
     window._pendingCateduRaList = importRaList.length ? importRaList : null;
-    console.log('[applyImport new] _pendingCateduRaList set:', window._pendingCateduRaList?.length ?? 'null');
 
     // Preview
     const totalCEs = importRaList.reduce((a, r) => a + (r.ces?.length || 0), 0);

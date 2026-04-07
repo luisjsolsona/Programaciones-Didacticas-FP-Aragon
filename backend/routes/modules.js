@@ -64,7 +64,7 @@ router.get('/', requireAuth, (req, res) => {
       ORDER BY p.updated_at DESC
     `).all();
   } else {
-    // Docente ve las propias + las del mismo ciclo (sin datos, solo metadatos)
+    // Docente ve las propias + las de cualquiera de sus ciclos
     rows = db.prepare(`
       SELECT p.id, p.titulo, p.codigo, p.created_at, p.updated_at,
              p.user_id, p.ciclo_id,
@@ -75,9 +75,11 @@ router.get('/', requireAuth, (req, res) => {
       JOIN users u ON u.id = p.user_id
       LEFT JOIN ciclo_profiles cp ON cp.id = p.ciclo_id
       WHERE p.user_id = ?
-         OR p.ciclo_id = ?
+         OR p.ciclo_id IN (
+              SELECT ciclo_id FROM user_ciclos WHERE user_id = ?
+            )
       ORDER BY p.updated_at DESC
-    `).all(req.user.id, req.user.id, req.user.cicloId || -1);
+    `).all(req.user.id, req.user.id, req.user.id);
   }
 
   res.json({ modules: rows });
@@ -95,8 +97,8 @@ router.post('/', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'El título (nombre del módulo) es obligatorio.' });
   }
 
-  // Usar el ciclo del docente por defecto
-  const effectiveCicloId = cicloId || req.user.cicloId || null;
+  // Usar el ciclo indicado, o el primero de los ciclos del docente
+  const effectiveCicloId = cicloId || req.user.cicloIds[0] || null;
 
   // Mezclar campos bloqueados del ciclo en los datos antes de guardar
   // Los campos bloqueados siempre prevalecen sobre lo que envíe el cliente
@@ -136,11 +138,10 @@ router.get('/:id', requireAuth, (req, res) => {
 
   if (!row) return res.status(404).json({ error: 'Programación no encontrada.' });
 
-  // Comprobar permisos de acceso
-  const isOwner    = row.user_id  === req.user.id;
-  const isAdmin    = req.user.role === 'admin';
-  const sameCiclo  = row.ciclo_id && row.ciclo_id === req.user.cicloId;
-  const readOnly   = !isOwner && !isAdmin; // docente de mismo ciclo → solo lectura
+  const isOwner   = row.user_id  === req.user.id;
+  const isAdmin   = req.user.role === 'admin';
+  const sameCiclo = row.ciclo_id && req.user.cicloIds.includes(row.ciclo_id);
+  const readOnly  = !isOwner && !isAdmin;
 
   if (!isOwner && !isAdmin && !sameCiclo) {
     return res.status(403).json({ error: 'No tienes acceso a esta programación.' });

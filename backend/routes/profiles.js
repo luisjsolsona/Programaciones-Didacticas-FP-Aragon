@@ -143,7 +143,7 @@ router.delete('/:id', requireAdmin, (req, res) => {
 
   // Contar cuántos usuarios y programaciones se verán afectados
   const affectedUsers = db.prepare(
-    'SELECT COUNT(*) as n FROM users WHERE ciclo_id = ?'
+    'SELECT COUNT(DISTINCT user_id) AS n FROM user_ciclos WHERE ciclo_id = ?'
   ).get(profileId).n;
 
   const affectedProgs = db.prepare(

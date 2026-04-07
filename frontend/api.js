@@ -59,7 +59,8 @@ const Users = {
   list: () =>
     apiFetch('/users'),
 
-  // Crear docente — body: { username, password, nombre, cicloId }
+  // Crear docente — body: { username, password, nombre, cicloIds }
+  // cicloIds: array de IDs de ciclo_profiles (puede estar vacío)
   create: (body) =>
     apiFetch('/users', { method: 'POST', body }),
 
@@ -67,7 +68,8 @@ const Users = {
   get: (id) =>
     apiFetch(`/users/${id}`),
 
-  // Editar docente — body: { nombre?, cicloId?, activo? }
+  // Editar docente — body: { nombre?, cicloIds?, activo? }
+  // cicloIds reemplaza la asignación completa de ciclos del usuario
   update: (id, body) =>
     apiFetch(`/users/${id}`, { method: 'PUT', body }),
 

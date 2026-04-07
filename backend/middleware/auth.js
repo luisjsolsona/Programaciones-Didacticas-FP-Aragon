@@ -33,11 +33,10 @@ function requireAuth(req, res, next) {
     // Verificar y decodificar el token
     const payload = jwt.verify(token, SECRET);
 
-    // Adjuntar los datos del usuario a la request para usarlos en los handlers
     req.user = {
-      id:      payload.userId,
-      role:    payload.role,
-      cicloId: payload.cicloId || null,
+      id:       payload.userId,
+      role:     payload.role,
+      cicloIds: payload.cicloIds || [],
     };
 
     next();

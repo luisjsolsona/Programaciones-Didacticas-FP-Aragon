@@ -68,11 +68,34 @@ db.exec(`
     updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
   );
 
+  -- Relación muchos-a-muchos entre usuarios y perfiles de ciclo
+  -- Un docente puede pertenecer a varios ciclos formativos
+  CREATE TABLE IF NOT EXISTS user_ciclos (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ciclo_id INTEGER NOT NULL REFERENCES ciclo_profiles(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, ciclo_id)
+  );
+
   -- Índices para acelerar las consultas más frecuentes
-  CREATE INDEX IF NOT EXISTS idx_prog_user    ON programaciones(user_id);
-  CREATE INDEX IF NOT EXISTS idx_prog_ciclo   ON programaciones(ciclo_id);
-  CREATE INDEX IF NOT EXISTS idx_users_ciclo  ON users(ciclo_id);
+  CREATE INDEX IF NOT EXISTS idx_prog_user       ON programaciones(user_id);
+  CREATE INDEX IF NOT EXISTS idx_prog_ciclo      ON programaciones(ciclo_id);
+  CREATE INDEX IF NOT EXISTS idx_users_ciclo     ON users(ciclo_id);
+  CREATE INDEX IF NOT EXISTS idx_user_ciclos_u   ON user_ciclos(user_id);
+  CREATE INDEX IF NOT EXISTS idx_user_ciclos_c   ON user_ciclos(ciclo_id);
 `);
+
+// =============================================================
+// MIGRACIÓN: copiar ciclo_id de users a user_ciclos
+// Solo se ejecuta si user_ciclos está vacía (primer arranque tras
+// el cambio de esquema) y hay usuarios con ciclo_id asignado.
+// =============================================================
+const ucCount = db.prepare('SELECT COUNT(*) AS n FROM user_ciclos').get().n;
+if (ucCount === 0) {
+  db.prepare(`
+    INSERT OR IGNORE INTO user_ciclos (user_id, ciclo_id)
+    SELECT id, ciclo_id FROM users WHERE ciclo_id IS NOT NULL
+  `).run();
+}
 
 // =============================================================
 // USUARIO ADMIN POR DEFECTO
