@@ -1000,6 +1000,16 @@ const Modules = {
         <label class="field-label">Ciclo formativo</label>
         <input type="text" id="newModuleCycle" placeholder="Ej: Sistemas Microinformáticos y Redes (IFC201)">
       </div>
+
+      <!-- Selector de perfil de ciclo: solo visible si el usuario tiene más de uno -->
+      <div class="field" id="newModuleCicloField" style="display:none">
+        <label class="field-label">Perfil de ciclo <span style="color:var(--text-muted);font-weight:400">(determina los campos bloqueados)</span></label>
+        <select id="newModuleCicloId"
+          style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%"
+          onchange="onNewModuleCicloChange()">
+          <option value="">— Sin perfil (sin campos bloqueados) —</option>
+        </select>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeNewModuleModal()">Cancelar</button>
@@ -1345,7 +1355,7 @@ let adminLoggedIn = false;    // true cuando el usuario es admin
 let collapsedSections = {};
 
 // Usuario autenticado actual (viene del servidor)
-let currentUser = null;       // { id, username, nombre, role, cicloId, cicloCod, cicloNombre }
+let currentUser = null;       // { id, username, nombre, role, ciclos: [{id, cod, nombre}] }
 
 // ===================================================
 //  CAPA DE PERSISTENCIA — API REST
@@ -1751,8 +1761,35 @@ async function handleImportFile(e) {
 //  MODAL NUEVO MÓDULO
 // ===================================================
 function openNewModuleModal() {
+  // Poblar selector de perfil de ciclo según los ciclos del usuario
+  const ciclos = currentUser?.ciclos || [];
+  const sel    = document.getElementById('newModuleCicloId');
+  const field  = document.getElementById('newModuleCicloField');
+
+  if (ciclos.length > 1) {
+    sel.innerHTML = '<option value="">— Sin perfil (sin campos bloqueados) —</option>' +
+      ciclos.map(c => `<option value="${c.id}">${c.cod} — ${c.nombre}</option>`).join('');
+    field.style.display = '';
+  } else {
+    // 0 o 1 ciclo: no hace falta que el usuario elija
+    sel.innerHTML = '';
+    if (ciclos.length === 1) sel.innerHTML = `<option value="${ciclos[0].id}" selected></option>`;
+    field.style.display = 'none';
+  }
+
   document.getElementById('newModuleModal').classList.remove('hidden');
   document.getElementById('newModuleName').focus();
+}
+
+// Cuando el usuario cambia el perfil en el modal, auto-rellena el campo de texto del ciclo
+function onNewModuleCicloChange() {
+  const sel    = document.getElementById('newModuleCicloId');
+  const ciclos = currentUser?.ciclos || [];
+  const chosen = ciclos.find(c => c.id === parseInt(sel.value));
+  if (chosen) {
+    const cycleInput = document.getElementById('newModuleCycle');
+    if (!cycleInput.value) cycleInput.value = `${chosen.nombre} (${chosen.cod})`;
+  }
 }
 function closeNewModuleModal() {
   document.getElementById('newModuleModal').classList.add('hidden');
@@ -1787,8 +1824,14 @@ async function createModule() {
     window._pendingCateduRaList = null;
   }
 
+  // Leer el perfil de ciclo seleccionado (o el único ciclo si solo tiene uno)
+  const ciclos      = currentUser?.ciclos || [];
+  const selCicloEl  = document.getElementById('newModuleCicloId');
+  const selCicloVal = selCicloEl?.value ? parseInt(selCicloEl.value) : null;
+  const cicloId     = selCicloVal || (ciclos.length === 1 ? ciclos[0].id : null) || null;
+
   try {
-    const { module } = await Modules.create({ titulo: name, codigo: code, data });
+    const { module } = await Modules.create({ titulo: name, codigo: code, data, cicloId });
     closeNewModuleModal();
     ['newModuleName','newModuleCode','newModuleHoras','newModuleHorasSem','newModuleCourse','newModuleCycle']
       .forEach(fid => document.getElementById(fid).value = '');
