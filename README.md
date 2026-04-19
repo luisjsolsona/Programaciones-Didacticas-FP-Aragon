@@ -2,6 +2,8 @@
 
 Herramienta web multiusuario para que los docentes de **Formación Profesional** creen, gestionen y exporten sus **programaciones didácticas**, con importación automática de datos desde [CATEDU](https://centrosdocentes.catedu.es) y control centralizado por parte del equipo directivo o jefatura de departamento.
 
+El usuario **administrador** puede establecer **campos bloqueados**, por ejemplo Normativa, Contextualización del centro o aquellos que se decidan en el PCC... de este modo **facilita el desarrollo de la programación al equipo docente**.
+
 Desarrollada específicamente para el sistema educativo de **Aragón**, adaptada a la normativa vigente (ORDEN ECD/842/2024 y concordantes).
 
 ---
