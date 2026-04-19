@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <rect x="80" y="140" width="160" height="230" rx="16" fill="white" opacity="0.95"/>
+  <rect x="272" y="140" width="160" height="230" rx="16" fill="white" opacity="0.85"/>
+  <rect x="236" y="130" width="40" height="250" rx="8" fill="#6d28d9"/>
+  <rect x="106" y="190" width="108" height="12" rx="6" fill="#e9d5ff"/>
+  <rect x="106" y="216" width="88" height="10" rx="5" fill="#e9d5ff"/>
+  <rect x="106" y="239" width="100" height="10" rx="5" fill="#e9d5ff"/>
+  <rect x="106" y="262" width="78" height="10" rx="5" fill="#e9d5ff"/>
+  <rect x="106" y="285" width="96" height="10" rx="5" fill="#e9d5ff"/>
+  <rect x="298" y="190" width="108" height="12" rx="6" fill="#e9d5ff"/>
+  <rect x="298" y="216" width="88" height="10" rx="5" fill="#e9d5ff"/>
+  <rect x="298" y="239" width="100" height="10" rx="5" fill="#e9d5ff"/>
+  <rect x="298" y="262" width="78" height="10" rx="5" fill="#e9d5ff"/>
+  <rect x="298" y="285" width="96" height="10" rx="5" fill="#e9d5ff"/>
+  <rect x="190" y="390" width="132" height="36" rx="10" fill="white" opacity="0.9"/>
+  <text x="256" y="416" text-anchor="middle" font-size="22" font-family="sans-serif" font-weight="bold" fill="#7c3aed">FP</text>
+</svg>

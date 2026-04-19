@@ -52,3 +52,23 @@ services:
       - "3000:80"
     depends_on:
       - backend
+
+x-casaos:
+  main: frontend
+  title:
+    en_us: Programaciones Didácticas FP
+  tagline:
+    en_us: Crea y gestiona programaciones didácticas para FP Aragón
+  description:
+    en_us: >
+      Aplicación web para crear y gestionar Programaciones Didácticas
+      de Formación Profesional en Aragón (normativa 2025-26).
+      Incluye gestión de usuarios, perfiles y exportación de documentos.
+  icon: https://raw.githubusercontent.com/luisjsolsona/Programaciones-Didacticas-FP-Aragon/main/frontend/icon.svg
+  architectures:
+    - amd64
+    - arm64
+  category: utilities
+  port_map: "3000"
+  scheme: http
+  index: /
