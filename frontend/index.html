@@ -821,6 +821,7 @@ const Modules = {
       <input type="file" id="ddImportModuleInput" accept=".json" style="display:none" onchange="handleImportFile(event)">
     </div>
     <button class="btn btn-outline btn-sm" onclick="openAdmin()">⚙ Panel Admin</button>
+    <button class="btn btn-outline btn-sm" id="miCuentaBtn" style="display:none" onclick="openMiCuenta()">🔑 Mi cuenta</button>
     <button class="btn btn-outline btn-sm" onclick="doLogout()">⏻ Salir</button>
   </div>
 </header>
@@ -1020,6 +1021,35 @@ const Modules = {
 </div>
 
 <!-- MODAL: login admin -->
+<!-- Modal: Mi cuenta (cambiar contraseña para docentes) -->
+<div class="modal-overlay hidden" id="miCuentaModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>🔑 Mi cuenta</h2>
+      <button class="modal-close" onclick="closeMiCuenta()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label">Contraseña actual</label>
+        <input type="password" id="miCuentaPwdActual" placeholder="Contraseña actual" autocomplete="current-password">
+      </div>
+      <div class="field">
+        <label class="field-label">Nueva contraseña</label>
+        <input type="password" id="miCuentaPwdNueva" placeholder="Mín. 6 caracteres" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label class="field-label">Confirmar nueva contraseña</label>
+        <input type="password" id="miCuentaPwdConfirm" placeholder="Repite la nueva contraseña" autocomplete="new-password">
+      </div>
+      <p id="miCuentaStatus" style="font-size:13px;margin-top:4px"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeMiCuenta()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveMiCuenta()">Cambiar contraseña</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="adminLoginModal">
   <div class="modal">
     <div class="modal-head">
@@ -1838,25 +1868,10 @@ async function createModule() {
       .forEach(fid => document.getElementById(fid).value = '');
     document.getElementById('newModCateduPreview').style.display = 'none';
 
-    // Guardar el objeto completo que ya conocemos (con los datos importados)
-    const fullModule = {
-      _loaded:   true,
-      readOnly:  false,
-      lockedKeys: [],
-      meta: {
-        name,
-        code,
-        course,
-        cycle,
-        cicloNombre:   cycle,
-        docenteNombre: currentUser?.nombre || currentUser?.username || '',
-      },
-      data,
-    };
-
-    // Recargar lista del sidebar, luego restaurar el módulo completo
+    // Recargar lista del sidebar y luego obtener el módulo del servidor
+    // para que los campos bloqueados del perfil se apliquen correctamente
     await loadState();
-    state.modules[module.id] = fullModule;
+    await loadModuleData(module.id);
     state.activeId = module.id;
 
     renderModulesList();
@@ -2637,7 +2652,17 @@ async function exportPDF() {
   const data = mod.data || {};
   showLoading('Generando PDF…');
 
-  const html = buildDocumentHtml(mod, data);
+  // Construir nombre de archivo: Programacion-CICLO-CURSO-MODULO-AÑO
+  const pdfCiclo  = (data.ciclo || mod.meta.cycle || '').replace(/\s*\(.*?\)/g, '').trim();
+  const pdfCurso  = (data.curso || mod.meta.course || '').trim();
+  const pdfModulo = (data.modulo_codigo || mod.meta.code || data.modulo_nombre || mod.meta.name || '').trim();
+  const yearMatch = pdfCurso.match(/\d{4}/);
+  const pdfAnio   = yearMatch ? yearMatch[0] : new Date().getFullYear();
+  const sanitize  = s => s.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\-]/g, '').replace(/-+/g, '-');
+  const pdfTitle  = ['Programacion', pdfCiclo, pdfCurso, pdfModulo, pdfAnio]
+    .map(sanitize).filter(Boolean).join('-');
+
+  const html = buildDocumentHtml(mod, data, 'print', pdfTitle);
   const win = window.open('', '_blank');
   win.document.write(html);
   win.document.close();
@@ -2647,7 +2672,7 @@ async function exportPDF() {
 // ===================================================
 //  CONSTRUCTOR DE DOCUMENTO HTML
 // ===================================================
-function buildDocumentHtml(mod, data, target = 'preview') {
+function buildDocumentHtml(mod, data, target = 'preview', docTitle = null) {
   const titulo = data.modulo_nombre || mod.meta.name || 'Programación Didáctica';
   const codigo = data.modulo_codigo || mod.meta.code || '';
   const ciclo  = data.ciclo || mod.meta.cycle || '';
@@ -2731,7 +2756,7 @@ function buildDocumentHtml(mod, data, target = 'preview') {
 <html lang="es"${target === 'word' ? ' xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"' : ''}>
 <head>
 <meta charset="UTF-8">
-<title>${escHtml(titulo)}</title>
+<title>${escHtml(docTitle || titulo)}</title>
 ${target === 'word' ? `<!--[if gte mso 9]><xml>
  <w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom>
  <w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->` : ''}
@@ -4020,6 +4045,43 @@ async function doLogin() {
   }
 }
 
+// ===================================================
+//  MI CUENTA (cambiar contraseña — docentes)
+// ===================================================
+function openMiCuenta() {
+  document.getElementById('miCuentaPwdActual').value  = '';
+  document.getElementById('miCuentaPwdNueva').value   = '';
+  document.getElementById('miCuentaPwdConfirm').value = '';
+  document.getElementById('miCuentaStatus').textContent = '';
+  document.getElementById('miCuentaModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('miCuentaPwdActual').focus(), 100);
+}
+
+function closeMiCuenta() {
+  document.getElementById('miCuentaModal').classList.add('hidden');
+}
+
+async function saveMiCuenta() {
+  const current  = document.getElementById('miCuentaPwdActual').value;
+  const nueva    = document.getElementById('miCuentaPwdNueva').value;
+  const confirm  = document.getElementById('miCuentaPwdConfirm').value;
+  const statusEl = document.getElementById('miCuentaStatus');
+
+  if (!current) { statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'Introduce tu contraseña actual.'; return; }
+  if (nueva.length < 6) { statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'La nueva contraseña debe tener al menos 6 caracteres.'; return; }
+  if (nueva !== confirm) { statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'Las contraseñas no coinciden.'; return; }
+
+  try {
+    await Users.changePassword(currentUser.id, { currentPassword: current, newPassword: nueva });
+    statusEl.style.color = 'var(--success)';
+    statusEl.textContent = '✔ Contraseña cambiada correctamente.';
+    setTimeout(closeMiCuenta, 1500);
+  } catch(e) {
+    statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = e.message;
+  }
+}
+
 async function doLogout() {
   try { await Auth.logout(); } catch(_) {}
   // Limpiar estado y volver al login
@@ -4049,9 +4111,11 @@ async function initApp(user) {
   const infoEl = document.getElementById('headerUserInfo');
   if (infoEl) infoEl.textContent = `${user.nombre || user.username} (${user.role})`;
 
-  // Mostrar/ocultar botón admin según rol
-  const adminBtn = document.querySelector('button[onclick="openAdmin()"]');
-  if (adminBtn) adminBtn.style.display = adminLoggedIn ? '' : 'none';
+  // Mostrar/ocultar botones según rol
+  const adminBtn    = document.querySelector('button[onclick="openAdmin()"]');
+  const miCuentaBtn = document.getElementById('miCuentaBtn');
+  if (adminBtn)    adminBtn.style.display    = adminLoggedIn ? '' : 'none';
+  if (miCuentaBtn) miCuentaBtn.style.display = adminLoggedIn ? 'none' : '';
 
   // Cargar configuración global local del admin si existe
   try {
@@ -4060,9 +4124,9 @@ async function initApp(user) {
   } catch(_) {}
 
   // Si el usuario es docente, precargar su perfil de ciclo para aplicar locks
-  if (user.cicloId) {
+  if (user.ciclos?.length) {
     try {
-      const { profile } = await Profiles.get(user.cicloId);
+      const { profile } = await Profiles.get(user.ciclos[0].id);
       (profile.locked_fields || []).forEach(f => {
         adminConfig.lockedFields[f.key]  = true;
         adminConfig.lockedValues[f.key]  = f.value;
