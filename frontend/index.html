@@ -802,7 +802,7 @@ const Modules = {
             <span class="dd-icon">🗑</span> Borrar datos guardados
           </button>
         </div>
-        <div class="data-dropdown-section">
+        <div class="data-dropdown-section" id="ddBackupSection">
           <div class="data-dropdown-label">Copia de seguridad</div>
           <button class="data-dropdown-item" onclick="ddExportBackup()">
             <span class="dd-icon">📦</span> Exportar copia de seguridad (.json)
@@ -1552,8 +1552,31 @@ function ddClearData() {
     .catch(e => showStatus('Error al borrar: ' + e.message, 'error'));
 }
 
-function ddExportBackup() {
+async function ddExportBackup() {
   document.getElementById('dataDropdown').classList.remove('open');
+
+  // Admin: copia completa (perfiles + usuarios + todos los módulos)
+  if (currentUser?.role === 'admin') {
+    showLoading('Generando copia de seguridad completa…');
+    try {
+      const backup = await Backup.export();
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `backup_completo_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      hideLoading();
+      showStatus(`📦 Copia completa: ${backup.profiles?.length || 0} ciclos, ${backup.users?.length || 0} usuarios, ${backup.modules?.length || 0} módulos`);
+    } catch(err) {
+      hideLoading();
+      showStatus('Error al exportar: ' + err.message, 'error');
+    }
+    return;
+  }
+
+  // Docente: solo sus módulos (formato v2, compatibilidad)
   const backup = {
     version: 2,
     exportDate: new Date().toISOString(),
@@ -1563,10 +1586,10 @@ function ddExportBackup() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `backup_programaciones_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `backup_mis_modulos_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
-  showStatus('📦 Copia de seguridad exportada');
+  showStatus('📦 Copia de seguridad de tus módulos exportada');
 }
 
 function ddRestoreBackup() {
@@ -1582,10 +1605,69 @@ async function handleRestoreBackup(event) {
   reader.onload = async e => {
     try {
       const parsed = JSON.parse(e.target.result);
+
+      // ── Backup completo v3 (solo admin puede restaurarlo) ──
+      if (parsed.version === 3) {
+        if (currentUser?.role !== 'admin') {
+          alert('Solo el administrador puede restaurar una copia de seguridad completa.');
+          return;
+        }
+        const nProfiles = parsed.profiles?.length || 0;
+        const nUsers    = parsed.users?.length    || 0;
+        const nModules  = parsed.modules?.length  || 0;
+        const exportDate = parsed.exportDate ? new Date(parsed.exportDate).toLocaleString('es-ES') : '—';
+
+        const msg = [
+          `📦 Copia de seguridad del ${exportDate}`,
+          '',
+          `  • ${nProfiles} perfiles de ciclo`,
+          `  • ${nUsers} docentes`,
+          `  • ${nModules} programaciones`,
+          '',
+          'Los perfiles y usuarios que ya existan en el sistema se omitirán (no se sobreescribirán).',
+          'Los módulos siempre se crearán (pueden quedar duplicados si ya existían).',
+          '',
+          '⚠️  Los docentes restaurados recibirán la contraseña temporal: cambiar1234',
+          '    Comunícasela y pídeles que la cambien tras el primer acceso.',
+          '',
+          '¿Continuar con la restauración?'
+        ].join('\n');
+
+        if (!confirm(msg)) return;
+        showLoading('Restaurando copia de seguridad completa…');
+        try {
+          const { results } = await Backup.restore({
+            profiles:        parsed.profiles || [],
+            users:           parsed.users    || [],
+            modules:         parsed.modules  || [],
+            defaultPassword: 'cambiar1234',
+          });
+          await loadState();
+          renderModulesList();
+          renderMainContent();
+          hideLoading();
+          const resMsg = [
+            `✔ Restauración completada:`,
+            `  • ${results.profiles} ciclos creados`,
+            `  • ${results.users} docentes creados`,
+            `  • ${results.modules} programaciones creadas`,
+            results.skipped ? `  • ${results.skipped} registros omitidos (ya existían)` : '',
+            results.errors?.length ? `  ⚠ ${results.errors.length} errores: ${results.errors.slice(0,3).join('; ')}` : '',
+          ].filter(Boolean).join('\n');
+          alert(resMsg);
+          showStatus(`✔ Restauración completa: ${results.profiles} ciclos, ${results.users} docentes, ${results.modules} módulos`);
+        } catch(err) {
+          hideLoading();
+          alert('Error durante la restauración: ' + err.message);
+        }
+        return;
+      }
+
+      // ── Backup de módulos v2 (compatibilidad) ──
       const modules = parsed.version === 2
         ? Object.values(parsed.data?.modules || {})
         : Object.values(parsed.modules || {});
-      if (!modules.length) throw new Error('No se encontraron módulos en el backup.');
+      if (!modules.length) throw new Error('No se encontraron módulos en el archivo.');
       if (!confirm(`Se restaurarán ${modules.length} módulo(s). ¿Continuar?`)) return;
       showStatus('Restaurando…');
       for (const mod of modules) {
@@ -4153,6 +4235,14 @@ async function initApp(user) {
   const miCuentaBtn = document.getElementById('miCuentaBtn');
   if (adminBtn)    adminBtn.style.display    = adminLoggedIn ? '' : 'none';
   if (miCuentaBtn) miCuentaBtn.style.display = adminLoggedIn ? 'none' : '';
+
+  // Etiqueta de copia de seguridad según rol
+  const ddBackupLabel = document.querySelector('#ddBackupSection .data-dropdown-label');
+  if (ddBackupLabel) {
+    ddBackupLabel.innerHTML = adminLoggedIn
+      ? 'Copia de seguridad <span style="font-size:10px;color:var(--gold);font-weight:600">COMPLETA</span>'
+      : 'Copia de seguridad';
+  }
 
   // Cargar configuración global local del admin si existe
   try {

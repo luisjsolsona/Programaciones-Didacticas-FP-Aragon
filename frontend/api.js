@@ -108,6 +108,20 @@ const Profiles = {
 };
 
 // =============================================================
+// BACKUP — Copia de seguridad completa (solo admin)
+// =============================================================
+const Backup = {
+  // Exportar todo: perfiles, usuarios (sin contraseñas) y módulos
+  export: () =>
+    apiFetch('/backup'),
+
+  // Restaurar desde backup v3
+  // body: { profiles, users, modules, defaultPassword? }
+  restore: (body) =>
+    apiFetch('/backup/restore', { method: 'POST', body }),
+};
+
+// =============================================================
 // MODULES — Programaciones didácticas
 // =============================================================
 const Modules = {
