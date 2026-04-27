@@ -100,10 +100,9 @@ router.post('/', requireAuth, (req, res) => {
   // Usar el ciclo indicado, o el primero de los ciclos del docente
   const effectiveCicloId = cicloId || req.user.cicloIds[0] || null;
 
-  // Mezclar campos bloqueados del ciclo en los datos antes de guardar
-  // Los campos bloqueados siempre prevalecen sobre lo que envíe el cliente
+  // Aplicar campos sugeridos del ciclo como valores iniciales (el usuario puede cambiarlos)
   const lockedFields = getLockedFields(effectiveCicloId);
-  const finalData    = { ...data, ...lockedFields };
+  const finalData    = { ...lockedFields, ...data };
 
   const result = db.prepare(`
     INSERT INTO programaciones (user_id, ciclo_id, titulo, codigo, data)
@@ -147,9 +146,9 @@ router.get('/:id', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'No tienes acceso a esta programación.' });
   }
 
-  // Mezclar campos bloqueados para que el frontend los reciba siempre correctos
+  // Devolver los datos tal como los guardó el usuario (las sugerencias se aplican al crear)
   const lockedFields = getLockedFields(row.ciclo_id);
-  const data         = { ...JSON.parse(row.data || '{}'), ...lockedFields };
+  const data         = JSON.parse(row.data || '{}');
   const lockedKeys   = Object.keys(lockedFields);
 
   res.json({
@@ -192,10 +191,9 @@ router.put('/:id', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'No tienes permiso para editar esta programación.' });
   }
 
-  // Los campos bloqueados del ciclo siempre prevalecen (no se pueden editar)
-  const lockedFields = getLockedFields(row.ciclo_id);
+  // El usuario puede editar todos los campos, incluidos los que tenían texto sugerido
   const currentData  = JSON.parse(row.data || '{}');
-  const finalData    = { ...currentData, ...(data || {}), ...lockedFields };
+  const finalData    = { ...currentData, ...(data || {}) };
 
   db.prepare(`
     UPDATE programaciones

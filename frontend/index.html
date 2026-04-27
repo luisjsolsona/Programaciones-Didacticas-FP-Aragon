@@ -249,6 +249,10 @@ const Modules = {
     background: var(--navy); color: var(--gold);
     font-size: 9px; padding: 2px 5px; border-radius: 3px; letter-spacing: 0.05em;
   }
+  .suggested-badge {
+    background: #f5c518; color: #1a2744;
+    font-size: 9px; padding: 2px 5px; border-radius: 3px; letter-spacing: 0.05em;
+  }
   .field input, .field textarea, .field select {
     width: 100%; padding: 10px 14px;
     border: 1.5px solid var(--border); border-radius: 6px;
@@ -1009,7 +1013,7 @@ const Modules = {
         <select id="newModuleCicloId"
           style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%"
           onchange="onNewModuleCicloChange()">
-          <option value="">— Sin perfil (sin campos bloqueados) —</option>
+          <option value="">— Sin perfil (sin campos sugeridos) —</option>
         </select>
       </div>
     </div>
@@ -1084,7 +1088,7 @@ const Modules = {
     <div class="admin-tabs" id="adminTabs">
       <button class="admin-tab active" onclick="adminSwitchTab('users')"    data-tab="users">👨‍🏫 Docentes y seguridad</button>
       <button class="admin-tab"        onclick="adminSwitchTab('profiles')" data-tab="profiles">🔄 Perfiles de ciclo</button>
-      <button class="admin-tab"        onclick="adminSwitchTab('locks')"    data-tab="locks">🔒 Campos bloqueados</button>
+      <button class="admin-tab"        onclick="adminSwitchTab('locks')"    data-tab="locks">💡 Campos sugeridos</button>
     </div>
 
     <!-- Contenido de pestañas -->
@@ -1155,8 +1159,8 @@ const Modules = {
           <div class="admin-section-head">🔄 Perfiles de ciclo formativo</div>
           <div class="admin-section-body">
             <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
-              Cada perfil representa un ciclo formativo. Los campos bloqueados se configuran
-              en la pestaña <strong>🔒 Campos bloqueados</strong>.
+              Cada perfil representa un ciclo formativo. Los campos sugeridos se configuran
+              en la pestaña <strong>💡 Campos sugeridos</strong>.
             </p>
             <div id="adminProfilesList" style="margin-bottom:12px">
               <div style="font-size:12px;color:var(--text-muted)">Cargando…</div>
@@ -1186,13 +1190,14 @@ const Modules = {
         </div>
       </div>
 
-      <!-- ── PESTAÑA 3: Campos bloqueados ── -->
+      <!-- ── PESTAÑA 3: Campos sugeridos ── -->
       <div class="admin-tab-panel" id="adminTab-locks">
         <div class="admin-section">
-          <div class="admin-section-head">🎯 Ciclo al que aplican los bloqueos</div>
+          <div class="admin-section-head">💡 Ciclo al que aplican las sugerencias</div>
           <div class="admin-section-body">
             <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
-              Selecciona el ciclo, activa el 🔒 en cada campo y escribe el valor fijo.
+              Selecciona el ciclo, activa el 💡 en cada campo y escribe el texto sugerido.
+              Los docentes verán ese texto pre-rellenado y podrán usarlo o modificarlo libremente.
               Pulsa <strong>Guardar configuración</strong> para aplicar.
             </p>
             <select id="adminCicloSelect"
@@ -1675,7 +1680,13 @@ function hideLoading() {
 // ===================================================
 function renderModulesList() {
   const list = document.getElementById('modulesList');
-  const ids  = Object.keys(state.modules);
+  const ids  = Object.keys(state.modules).sort((a, b) => {
+    const ma = state.modules[a], mb = state.modules[b];
+    const ca = (ma.meta.cicloNombre || ma.meta.cycle || '').toLowerCase();
+    const cb = (mb.meta.cicloNombre || mb.meta.cycle || '').toLowerCase();
+    if (ca !== cb) return ca.localeCompare(cb, 'es');
+    return (ma.meta.code || '').toLowerCase().localeCompare((mb.meta.code || '').toLowerCase(), 'es');
+  });
   if (!ids.length) {
     list.innerHTML = '<p style="padding:16px;font-size:12px;color:var(--text-muted);text-align:center">No hay módulos guardados</p>';
     return;
@@ -1798,7 +1809,7 @@ function openNewModuleModal() {
   const field  = document.getElementById('newModuleCicloField');
 
   if (ciclos.length > 1) {
-    sel.innerHTML = '<option value="">— Sin perfil (sin campos bloqueados) —</option>' +
+    sel.innerHTML = '<option value="">— Sin perfil (sin campos sugeridos) —</option>' +
       ciclos.map(c => `<option value="${c.id}">${c.cod} — ${c.nombre}</option>`).join('');
     field.style.display = '';
   } else {
@@ -1967,18 +1978,18 @@ function renderMainContent() {
     FIELD_DEFS.forEach(section => {
       section.fields.forEach(field => {
         if (field.type === 'textarea') {
-          const locked = isReadOnly || !!(adminConfig.lockedFields?.[field.key]);
-          if (locked) return;
+          if (isReadOnly) return; // los readonly se muestran directamente en el HTML
           const el = document.getElementById('rte_' + field.key);
           if (!el) return;
-          const val = adminConfig.lockedValues?.[field.key] || data[field.key] || '';
+          // Prioridad: valor guardado por el usuario > texto sugerido por el admin
+          const val = data[field.key] || adminConfig.lockedValues?.[field.key] || '';
           if (val) el.innerHTML = val;
         } else if (field.type === 'text') {
-          const locked = isReadOnly || !!(adminConfig.lockedFields?.[field.key]);
-          if (locked) return; // los bloqueados tienen readonly en el HTML
+          if (isReadOnly) return; // los readonly tienen readonly en el HTML
           const el = document.getElementById('field_text_' + field.key);
           if (!el) return;
-          const val = adminConfig.lockedValues?.[field.key] || data[field.key] || adminConfig.globalValues?.[field.key] || '';
+          // Prioridad: valor guardado > sugerido por admin > valor global
+          const val = data[field.key] || adminConfig.lockedValues?.[field.key] || adminConfig.globalValues?.[field.key] || '';
           if (val) el.value = val;
         }
       });
@@ -2005,14 +2016,14 @@ function toggleSection(sectionId) {
 }
 
 function renderField(field, data, forceReadOnly = false) {
-  // Un campo está bloqueado si: el admin lo fijó para este ciclo, O la programación es de solo lectura
-  const locked = forceReadOnly || !!(adminConfig.lockedFields && adminConfig.lockedFields[field.key]);
-  // Si está bloqueado y el admin fijó un valor, ese tiene prioridad sobre lo guardado en el módulo
-  const lockedAdminVal = locked && adminConfig.lockedValues && adminConfig.lockedValues[field.key];
-  const value = lockedAdminVal !== undefined && lockedAdminVal !== ''
-    ? lockedAdminVal
-    : (data[field.key] !== undefined ? data[field.key]
-      : (adminConfig.globalValues && adminConfig.globalValues[field.key]) || '');
+  // Un campo está bloqueado solo si la programación es de solo lectura (ajena al usuario)
+  const locked = forceReadOnly;
+  // Un campo es "sugerido" si el admin definió un texto inicial para este ciclo (editable por el usuario)
+  const suggested = !forceReadOnly && !!(adminConfig.lockedFields && adminConfig.lockedFields[field.key]);
+  // Valor a mostrar: para campos readonly, usar el valor almacenado; para editables, el setTimeout lo rellena
+  const value = data[field.key] !== undefined && data[field.key] !== ''
+    ? data[field.key]
+    : ((adminConfig.globalValues && adminConfig.globalValues[field.key]) || '');
 
   let innerHtml = '';
 
@@ -2086,7 +2097,8 @@ function renderField(field, data, forceReadOnly = false) {
     innerHtml = `<input type="text" id="field_text_${field.key}" class="${lockedCls}" ${lockedAttr} value="${displayVal}" placeholder="${field.placeholder||''}">`;
   }
 
-  const lockBadge = locked ? '<span class="locked-badge">BLOQUEADO</span>' : '';
+  const lockBadge = locked ? '<span class="locked-badge">BLOQUEADO</span>'
+                           : (suggested ? '<span class="suggested-badge">💡 SUGERIDO</span>' : '');
   const importBtn = (!locked && field.importTarget)
     ? `<button class="btn btn-sm" onclick="openImportModal('${field.importTarget}')"
         style="background:#1a6fad;color:white;font-size:11px;padding:3px 10px;margin-left:8px">
@@ -2702,30 +2714,52 @@ function buildDocumentHtml(mod, data, target = 'preview', docTitle = null) {
   });
   body += `</ul><div style="page-break-after:always"></div>`;
 
-  // Secciones
+  // Secciones (se excluye la sección 'historial' que se trata al final)
   FIELD_DEFS.forEach(sec => {
+    if (sec.section === 'historial') return;
     body += `<h2 id="${sec.section}">${sec.letter}) ${sec.label.replace(/^[a-z]\)\s*/i,'')}</h2>`;
     sec.fields.forEach(field => {
+      if (field.type === 'divider') return;
       const value = data[field.key];
-      if (!value) return;
 
-      if (field.type === 'table' && Array.isArray(value)) {
+      if (field.type === 'computed') {
+        const computedVal = computeField(field.key, data);
+        if (computedVal && !computedVal.startsWith('—')) {
+          body += `<p><strong>${escHtml(field.label)}</strong></p><p>${escHtml(computedVal)}</p>`;
+        }
+      } else if (field.type === 'table' && Array.isArray(value) && value.length) {
         body += `<p><strong>${escHtml(field.label)}</strong></p>`;
         body += `<table><thead><tr>${field.columns.map(c=>`<th>${escHtml(c)}</th>`).join('')}</tr></thead><tbody>`;
         value.forEach(row => {
           body += `<tr>${row.map(cell=>`<td>${escHtml(cell||'')}</td>`).join('')}</tr>`;
         });
         body += `</tbody></table>`;
-      } else if (field.type === 'ra_pct' && typeof value === 'object') {
+      } else if (field.type === 'ra_pct' && value && typeof value === 'object') {
         body += `<p><strong>Ponderación de Resultados de Aprendizaje</strong></p>`;
         body += `<table><thead><tr><th>RA</th><th>Ponderación (%)</th></tr></thead><tbody>`;
         Object.entries(value).forEach(([ra, pct]) => {
           body += `<tr><td>${ra}</td><td>${pct}%</td></tr>`;
         });
         body += `</tbody></table>`;
-      } else if (typeof value === 'string') {
+      } else if (field.type === 'ra_pct_dynamic' && Array.isArray(value) && value.length) {
         body += `<p><strong>${escHtml(field.label)}</strong></p>`;
-        // El valor puede ser HTML rico (del editor) o texto plano
+        body += `<table><thead><tr><th>RA</th><th>Ponderación (%)</th></tr></thead><tbody>`;
+        value.forEach(ra => {
+          body += `<tr><td>${escHtml(ra.id||'')}</td><td>${ra.pct||0}%</td></tr>`;
+        });
+        body += `</tbody></table>`;
+      } else if (field.type === 'calificacion_ev' && Array.isArray(value) && value.length) {
+        body += `<p><strong>${escHtml(field.label)}</strong></p>`;
+        value.forEach(block => {
+          body += `<h3 style="font-size:12pt;color:#1a2744;margin-top:12px">${escHtml(block.ev||'')}</h3>`;
+          body += `<table><thead><tr><th>RA</th><th>%</th><th>Ponderación instrumentos</th></tr></thead><tbody>`;
+          (block.rows||[]).forEach(row => {
+            body += `<tr><td>${escHtml(row.ra||'')}</td><td>${row.pct||0}%</td><td>${escHtml(row.instrumentos||'').replace(/\n/g,'<br>')}</td></tr>`;
+          });
+          body += `</tbody></table>`;
+        });
+      } else if (typeof value === 'string' && value) {
+        body += `<p><strong>${escHtml(field.label)}</strong></p>`;
         const isRichHtml = /<[a-z][\s\S]*>/i.test(value);
         if (isRichHtml) {
           body += `<div class="rich-value">${sanitizeHtml(value)}</div>`;
@@ -2736,10 +2770,17 @@ function buildDocumentHtml(mod, data, target = 'preview', docTitle = null) {
     });
   });
 
-  // Historial
-  body += `<h2>Historial de modificaciones</h2>
-  <table><thead><tr><th>Versión</th><th>Descripción</th><th>Fecha</th></tr></thead>
-  <tbody><tr><td>V1.0.0</td><td>Programación inicial</td><td>${new Date().toLocaleDateString('es-ES')}</td></tr></tbody></table>`;
+  // Historial de modificaciones
+  body += `<h2>ñ) Historial de modificaciones</h2>`;
+  if (data.historial) {
+    const isRichHtml = /<[a-z][\s\S]*>/i.test(data.historial);
+    body += isRichHtml
+      ? `<div class="rich-value">${sanitizeHtml(data.historial)}</div>`
+      : `<p>${escHtml(data.historial).replace(/\n/g,'<br>')}</p>`;
+  } else {
+    body += `<table><thead><tr><th>Versión</th><th>Descripción</th><th>Fecha</th></tr></thead>
+    <tbody><tr><td>V1.0.0</td><td>Programación inicial</td><td>${new Date().toLocaleDateString('es-ES')}</td></tr></tbody></table>`;
+  }
 
   // Word usa mso-page-orientation y márgenes de página via XML para ocupar el ancho completo
   const wordPageCss = target === 'word' ? `
@@ -2830,7 +2871,7 @@ function closeAdminPanel() {
 }
 
 function renderAdminPanel() {
-  // Rellenar pestaña Campos bloqueados con los toggles
+  // Rellenar pestaña Campos sugeridos con los toggles
   const ADMIN_LOCKABLE_EXCLUDE = new Set(['modulo_nombre','modulo_codigo','modulo_horas','modulo_horas_sem','perdida_ec_horas']);
   const locksBody = document.getElementById('adminLocksBody');
   if (locksBody) {
@@ -2859,7 +2900,7 @@ function renderAdminPanel() {
             </div>
             <div style="display:flex;align-items:center;gap:10px">
               <span style="font-size:11px;color:${isLocked?'var(--navy)':'var(--text-muted)'};font-weight:${isLocked?'600':'400'}"
-                id="lockLabel_${field.key}">${isLocked?'🔒 Bloqueado':'🔓 Libre'}</span>
+                id="lockLabel_${field.key}">${isLocked?'💡 Sugerido':'◻ Sin sugerir'}</span>
               <label class="toggle" onclick="event.stopPropagation()">
                 <input type="checkbox" id="lock_${field.key}" ${isLocked?'checked':''}
                   onchange="adminToggleLock('${field.key}', this.checked)">
@@ -2871,7 +2912,7 @@ function renderAdminPanel() {
             style="padding:10px 14px;background:var(--locked-bg);border-top:1px dashed var(--locked-border)">
             <label style="font-size:11px;font-weight:600;color:var(--navy);text-transform:uppercase;
               letter-spacing:.05em;display:block;margin-bottom:6px">
-              ✏ Texto fijo que verán los usuarios
+              ✏ Texto sugerido para los usuarios (pueden modificarlo)
             </label>
             ${isTA ? `
               <div class="rich-editor-wrap" style="border-color:var(--locked-border)">
@@ -2888,15 +2929,15 @@ function renderAdminPanel() {
                 </div>
                 <div class="rich-content" id="lv_${field.key}" contenteditable="true"
                   data-key="adm_${field.key}" style="min-height:80px"
-                  placeholder="Escribe aquí el texto fijo…"
+                  placeholder="Escribe aquí el texto sugerido…"
                   oninput="rteAdmUpdateToolbar('${field.key}')">${lockedVal}</div>
               </div>
             ` : `<input type="text" id="lv_${field.key}" value="${escHtml(lockedVal)}"
                 style="width:100%;border:1.5px solid var(--locked-border);border-radius:6px;padding:8px 10px;
                 font-family:'DM Sans',sans-serif;font-size:13px;background:white"
-                placeholder="Texto fijo para todos los usuarios…">`}
+                placeholder="Texto sugerido para los usuarios…">`}
             <p style="font-size:11px;color:var(--text-muted);margin-top:5px;font-style:italic">
-              Si lo dejas vacío, el campo aparecerá bloqueado pero en blanco.
+              Si lo dejas vacío, el campo aparecerá vacío sin texto sugerido.
             </p>
           </div>
         </div>`;
@@ -3023,7 +3064,7 @@ async function adminLoadUsersAndProfiles() {
                 <span style="font-size:13px;font-weight:600;color:var(--navy)">${escHtml(p.cod)}</span>
                 <span style="font-size:13px;margin-left:6px">${escHtml(p.nombre)}</span>
                 <span style="font-size:11px;color:${nLocked ? 'var(--navy)' : 'var(--text-muted)'};margin-left:8px;font-weight:${nLocked ? '600' : '400'}">
-                  🔒 ${nLocked} campo${nLocked !== 1 ? 's' : ''} bloqueado${nLocked !== 1 ? 's' : ''}
+                  💡 ${nLocked} campo${nLocked !== 1 ? 's' : ''} sugerido${nLocked !== 1 ? 's' : ''}
                 </span>
                 ${nLocked ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;padding-left:2px">${escHtml(lockedNames)}</div>` : ''}
               </div>
@@ -3063,7 +3104,7 @@ async function adminLoadCicloLocks(cicloId) {
         else valEl.innerHTML = f.value || '';
       }
     });
-    if (st) st.textContent = `✔ ${lockedArr.length} campo${lockedArr.length !== 1 ? 's' : ''} bloqueado${lockedArr.length !== 1 ? 's' : ''} en este ciclo`;
+    if (st) st.textContent = `✔ ${lockedArr.length} campo${lockedArr.length !== 1 ? 's' : ''} sugerido${lockedArr.length !== 1 ? 's' : ''} en este ciclo`;
   } catch(e) {
     if (st) st.textContent = 'Error al cargar el perfil: ' + e.message;
   }
@@ -3183,7 +3224,7 @@ async function adminCreateProfile() {
 }
 
 async function adminEditProfile(cicloId) {
-  // Cambiar a la pestaña de campos bloqueados
+  // Cambiar a la pestaña de campos sugeridos
   adminSwitchTab('locks');
   // Seleccionar el ciclo en el selector
   const sel = document.getElementById('adminCicloSelect');
@@ -3194,11 +3235,11 @@ async function adminEditProfile(cicloId) {
   }
   await adminLoadCicloLocks(cicloId);
   const st = document.getElementById('adminCicloStatus');
-  if (st) st.innerHTML = '✏️ Modifica los candados y pulsa <strong>Guardar configuración</strong> para aplicar.';
+  if (st) st.innerHTML = '✏️ Modifica las sugerencias y pulsa <strong>Guardar configuración</strong> para aplicar.';
 }
 
 async function adminDeleteProfile(id, cod) {
-  if (!confirm(`¿Eliminar el perfil "${cod}"? Los campos bloqueados de ese ciclo se perderán.`)) return;
+  if (!confirm(`¿Eliminar el perfil "${cod}"? Los campos sugeridos de ese ciclo se perderán.`)) return;
   try {
     await Profiles.delete(id);
     adminLoadUsersAndProfiles();
@@ -3260,17 +3301,13 @@ async function saveAdminConfig() {
     try {
       await Profiles.update(cicloId, { locked_fields });
       await adminLoadUsersAndProfiles();
-      messages.push(`${locked_fields.length} campos bloqueados guardados`);
+      messages.push(`${locked_fields.length} campos sugeridos guardados`);
     } catch(e) {
       showStatus('Error al guardar campos bloqueados: ' + e.message, 'error');
       return;
     }
 
-    // Propagar valores bloqueados a módulos en memoria
-    Object.values(state.modules).forEach(mod => {
-      if (!mod._loaded) return;
-      Object.entries(adminConfig.lockedValues).forEach(([k, v]) => { if (v !== '') mod.data[k] = v; });
-    });
+    // Las sugerencias solo se aplican a módulos nuevos, no se sobreescriben los existentes
     if (state.activeId) renderMainContent();
   }
 
@@ -3292,7 +3329,7 @@ function adminToggleLock(fieldKey, checked) {
   const blockHead = document.getElementById('blockhead_' + fieldKey);
   if (valDiv)     valDiv.classList.toggle('hidden', !checked);
   if (label)      {
-    label.textContent   = checked ? '🔒 Bloqueado' : '🔓 Libre';
+    label.textContent   = checked ? '💡 Sugerido' : '◻ Sin sugerir';
     label.style.color       = checked ? 'var(--navy)'       : 'var(--text-muted)';
     label.style.fontWeight  = checked ? '600'               : '400';
   }
