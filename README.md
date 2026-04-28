@@ -15,7 +15,7 @@ Desarrollada específicamente para el sistema educativo de **Aragón**, adaptada
 - Autenticación segura mediante JWT en cookie httpOnly
 - Guardado automático con debounce (1,5 s tras cada edición)
 - Exportación completa a **PDF** y **Word** (todos los apartados: tablas de calificación, ponderación de RAs, historial…)
-- Copia de seguridad y restauración en formato JSON
+- **Copia de seguridad completa** (admin): exporta perfiles, usuarios y todas las programaciones; la restauración recrea todo en una instalación nueva
 - Compatible con Docker en cualquier plataforma (Linux, Windows, macOS, CasaOS)
 
 ---
@@ -24,10 +24,10 @@ Desarrollada específicamente para el sistema educativo de **Aragón**, adaptada
 
 ### Para el docente
 - Crear programaciones didácticas por módulo con todos los apartados reglamentarios (introducción, RAs, secuenciación, metodología, evaluación, atención a la diversidad, recursos, actividades complementarias)
-- **Importación automática desde CATEDU**: navega por Familia Profesional → Ciclo → Módulo y se rellenan automáticamente código, horas, RAs y criterios de evaluación codificados (CE1.a, CE1.b…)
+- **Importación automática desde CATEDU**: navega por Familia Profesional → Ciclo → Módulo y se rellenan automáticamente código, horas, RAs y criterios de evaluación codificados (CE1.a, CE1.b…). Con la extensión [Allow CORS](https://chromewebstore.google.com/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigeejlf?pli=1) la carga es más rápida y sin bloqueos
 - Editor de texto enriquecido en los campos de desarrollo libre
 - Vista de solo lectura de las programaciones de compañeros del mismo ciclo
-- Panel lateral con módulos ordenados por ciclo y código de módulo
+- Panel lateral con buscador (filtra por nombre, ciclo, código o docente) y módulos ordenados por ciclo y código
 
 ### Crear PERFILES
 ![crear perfiles](crear-perfiles.gif)
@@ -47,6 +47,7 @@ Desarrollada específicamente para el sistema educativo de **Aragón**, adaptada
   - **Perfiles de ciclo** — crear un perfil por ciclo formativo; ver campos sugeridos por perfil
   - **Campos sugeridos** — definir un texto inicial para cualquier campo por ciclo; los docentes lo reciben pre-rellenado y pueden adaptarlo libremente
 - El administrador puede ver y editar todas las programaciones de todos los docentes
+- **Copia de seguridad completa**: exporta en un JSON todos los ciclos (con campos sugeridos), docentes y programaciones; la restauración los recrea en una nueva instalación asignando a cada módulo su propietario original. Los docentes restaurados reciben una contraseña temporal (`cambiar1234`)
 
 ---
 
@@ -131,7 +132,8 @@ Programaciones-Didacticas-FP-Aragon/
 │       ├── auth.js             # POST /login · POST /logout · GET /me
 │       ├── users.js            # CRUD docentes (solo admin)
 │       ├── profiles.js         # CRUD perfiles de ciclo y campos sugeridos
-│       └── modules.js          # CRUD programaciones
+│       ├── modules.js          # CRUD programaciones
+│       └── backup.js           # GET exportar todo · POST restaurar (solo admin)
 ├── frontend/
 │   ├── Dockerfile
 │   ├── nginx.conf              # Proxy /api/* → backend
