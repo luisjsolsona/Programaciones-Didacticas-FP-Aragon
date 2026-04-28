@@ -53,6 +53,11 @@ const Modules = {
   update: (id,body) => apiFetch(`/modules/${id}`, { method: 'PUT',    body }),
   delete: (id)      => apiFetch(`/modules/${id}`, { method: 'DELETE' }),
 };
+
+const Backup = {
+  export:  ()     => apiFetch('/backup'),
+  restore: (body) => apiFetch('/backup/restore', { method: 'POST', body }),
+};
 </script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -161,6 +166,14 @@ const Modules = {
     font-size: 16px; color: var(--navy); font-weight: 600;
     margin-bottom: 12px;
   }
+  .sidebar-search {
+    width: 100%; padding: 6px 10px;
+    border: 1.5px solid var(--border); border-radius: 6px;
+    font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--text);
+    background: var(--cream); margin-top: 8px;
+    transition: border-color 0.15s;
+  }
+  .sidebar-search:focus { outline: none; border-color: var(--navy); background: white; }
   .modules-list { flex: 1; overflow-y: auto; padding: 8px; }
   .module-item {
     padding: 10px 12px; border-radius: 6px; cursor: pointer;
@@ -841,6 +854,9 @@ const Modules = {
         <button class="btn btn-primary btn-sm" style="flex:1" onclick="openNewModuleModal()">+ Nuevo</button>
         <button class="btn btn-ghost btn-sm" style="flex:1" onclick="importModuleFile()" title="Importar módulo desde archivo .json">📂 Importar</button>
       </div>
+      <input type="search" class="sidebar-search" id="sidebarSearch"
+        placeholder="🔍 Buscar por nombre, ciclo o código…"
+        oninput="setSidebarFilter(this.value)">
     </div>
     <div class="modules-list" id="modulesList"></div>
     <div class="sidebar-footer" style="font-size:11px;color:var(--text-muted);text-align:center">
@@ -970,6 +986,12 @@ const Modules = {
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Importa nombre, código, horas, ciclo y RAs/CEs automáticamente</div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="openImportForNew()">🔍 Buscar módulo</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:2px">
+        ¿Tarda en cargar o no aparecen datos? Instala la extensión
+        <a href="https://chromewebstore.google.com/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigeejlf?pli=1"
+           target="_blank" style="color:var(--navy);font-weight:600">Allow CORS</a>
+        para Chrome — con ella los datos de CATEDU se cargan más rápido y sin bloqueos.
       </div>
 
       <!-- Preview de datos importados desde CATEDU -->
@@ -1388,6 +1410,7 @@ let state = {
 };
 let adminConfig = { ...DEFAULT_ADMIN_CONFIG };
 let adminLoggedIn = false;    // true cuando el usuario es admin
+let _sidebarFilter = '';      // texto del buscador del sidebar
 let collapsedSections = {};
 
 // Usuario autenticado actual (viene del servidor)
@@ -1760,17 +1783,42 @@ function hideLoading() {
 // ===================================================
 //  SIDEBAR - MÓDULOS
 // ===================================================
+function setSidebarFilter(val) {
+  _sidebarFilter = val;
+  renderModulesList();
+}
+
+// Normaliza texto para comparar sin tildes ni mayúsculas
+function normStr(s) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+}
+
 function renderModulesList() {
   const list = document.getElementById('modulesList');
-  const ids  = Object.keys(state.modules).sort((a, b) => {
+  const q = normStr(_sidebarFilter);
+
+  let ids = Object.keys(state.modules).sort((a, b) => {
     const ma = state.modules[a], mb = state.modules[b];
     const ca = (ma.meta.cicloNombre || ma.meta.cycle || '').toLowerCase();
     const cb = (mb.meta.cicloNombre || mb.meta.cycle || '').toLowerCase();
     if (ca !== cb) return ca.localeCompare(cb, 'es');
     return (ma.meta.code || '').toLowerCase().localeCompare((mb.meta.code || '').toLowerCase(), 'es');
   });
+
+  if (q) {
+    ids = ids.filter(id => {
+      const m = state.modules[id];
+      return normStr(m.meta.name).includes(q)
+          || normStr(m.meta.cicloNombre || m.meta.cycle).includes(q)
+          || normStr(m.meta.code).includes(q)
+          || normStr(m.meta.docenteNombre).includes(q);
+    });
+  }
+
   if (!ids.length) {
-    list.innerHTML = '<p style="padding:16px;font-size:12px;color:var(--text-muted);text-align:center">No hay módulos guardados</p>';
+    list.innerHTML = q
+      ? `<p style="padding:16px;font-size:12px;color:var(--text-muted);text-align:center">Sin resultados para "<strong>${escHtml(_sidebarFilter)}</strong>"</p>`
+      : '<p style="padding:16px;font-size:12px;color:var(--text-muted);text-align:center">No hay módulos guardados</p>';
     return;
   }
   list.innerHTML = ids.map(id => {
