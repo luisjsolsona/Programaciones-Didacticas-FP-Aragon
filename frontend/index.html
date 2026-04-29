@@ -1647,7 +1647,8 @@ async function handleRestoreBackup(event) {
           `  • ${nUsers} docentes`,
           `  • ${nModules} programaciones`,
           '',
-          'Los perfiles y usuarios que ya existan en el sistema se omitirán (no se sobreescribirán).',
+          'Los perfiles existentes se actualizarán con los campos sugeridos del backup.',
+          'Los docentes que ya existan se omitirán (no se sobreescribe su contraseña).',
           'Los módulos siempre se crearán (pueden quedar duplicados si ya existían).',
           '',
           '⚠️  Los docentes restaurados recibirán la contraseña temporal: cambiar1234',
@@ -1672,9 +1673,10 @@ async function handleRestoreBackup(event) {
           const resMsg = [
             `✔ Restauración completada:`,
             `  • ${results.profiles} ciclos creados`,
+            results.profilesUpdated ? `  • ${results.profilesUpdated} ciclos actualizados (campos sugeridos restaurados)` : '',
             `  • ${results.users} docentes creados`,
             `  • ${results.modules} programaciones creadas`,
-            results.skipped ? `  • ${results.skipped} registros omitidos (ya existían)` : '',
+            results.skipped ? `  • ${results.skipped} docentes omitidos (ya existían)` : '',
             results.errors?.length ? `  ⚠ ${results.errors.length} errores: ${results.errors.slice(0,3).join('; ')}` : '',
           ].filter(Boolean).join('\n');
           alert(resMsg);

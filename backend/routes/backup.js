@@ -93,8 +93,9 @@ router.get('/', requireAdmin, (req, res) => {
 // }
 //
 // Estrategia:
-//   - Perfiles: se crean si no existe ya uno con el mismo cod.
-//     Si ya existe, se usa el existente (no se sobreescribe).
+//   - Perfiles: se crean si no existen; si ya existen, se actualizan
+//     nombre y locked_fields con los del backup (los campos sugeridos
+//     siempre se restauran).
 //   - Usuarios: se crean si no existe ya uno con el mismo username.
 //     Si ya existe, se usa el existente (no se sobreescribe).
 //   - Módulos: siempre se crean (pueden quedar duplicados si ya
@@ -112,7 +113,7 @@ router.post('/restore', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'La contraseña temporal debe tener al menos 6 caracteres.' });
   }
 
-  const results = { profiles: 0, users: 0, modules: 0, skipped: 0, errors: [] };
+  const results = { profiles: 0, profilesUpdated: 0, users: 0, modules: 0, skipped: 0, errors: [] };
 
   // ── 1. Perfiles ──────────────────────────────────────────
   // Mapa cod → id (incluye los ya existentes)
@@ -123,8 +124,16 @@ router.post('/restore', requireAdmin, (req, res) => {
   for (const p of profiles) {
     if (!p.cod || !p.nombre) continue;
     if (cicloMap[p.cod] !== undefined) {
-      results.skipped++;
-      continue; // ya existe, lo usamos pero no sobreescribimos
+      // El perfil ya existe: actualizar nombre y locked_fields con los del backup
+      try {
+        db.prepare(`
+          UPDATE ciclo_profiles SET nombre = ?, locked_fields = ? WHERE id = ?
+        `).run(p.nombre, JSON.stringify(p.locked_fields || []), cicloMap[p.cod]);
+        results.profilesUpdated++;
+      } catch (e) {
+        results.errors.push(`Perfil ${p.cod} (actualizar): ${e.message}`);
+      }
+      continue;
     }
     try {
       const r = db.prepare(`

@@ -47,7 +47,7 @@ Desarrollada específicamente para el sistema educativo de **Aragón**, adaptada
   - **Perfiles de ciclo** — crear un perfil por ciclo formativo; ver campos sugeridos por perfil
   - **Campos sugeridos** — definir un texto inicial para cualquier campo por ciclo; los docentes lo reciben pre-rellenado y pueden adaptarlo libremente
 - El administrador puede ver y editar todas las programaciones de todos los docentes
-- **Copia de seguridad completa**: exporta en un JSON todos los ciclos (con campos sugeridos), docentes y programaciones; la restauración los recrea en una nueva instalación asignando a cada módulo su propietario original. Los docentes restaurados reciben una contraseña temporal (`cambiar1234`)
+- **Copia de seguridad completa**: exporta en un JSON todos los ciclos (con campos sugeridos), docentes y programaciones; la restauración crea los perfiles nuevos y **actualiza los campos sugeridos de los ya existentes**, crea los docentes que no existan y asigna cada módulo a su propietario original. Los docentes restaurados reciben una contraseña temporal (`cambiar1234`)
 
 ---
 
