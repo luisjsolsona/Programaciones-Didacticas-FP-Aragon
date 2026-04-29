@@ -29,8 +29,8 @@ const PORT = process.env.PORT || 3001;
 // MIDDLEWARES GLOBALES
 // =============================================================
 
-// Parsear cuerpos JSON en las peticiones
-app.use(express.json());
+// Parsear cuerpos JSON en las peticiones (límite 50 MB para backups completos)
+app.use(express.json({ limit: '50mb' }));
 
 // Parsear cookies (necesario para leer el JWT de la cookie httpOnly)
 app.use(cookieParser());

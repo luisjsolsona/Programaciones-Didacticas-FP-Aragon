@@ -145,6 +145,8 @@ Programaciones-Didacticas-FP-Aragon/
 
 **Stack:** Node.js · Express · SQLite · Nginx · Docker
 
+> **Nota:** Nginx y Express están configurados para aceptar cuerpos de hasta **50 MB**, necesario para restaurar copias de seguridad grandes.
+
 ---
 
 ## Despliegue en CasaOS
