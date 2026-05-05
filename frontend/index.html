@@ -264,8 +264,12 @@ const Backup = {
   }
   .suggested-badge {
     background: #f5c518; color: #1a2744;
-    font-size: 9px; padding: 2px 5px; border-radius: 3px; letter-spacing: 0.05em;
+    font-size: 9px; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.05em;
+    border: none; cursor: pointer; font-family: inherit; font-weight: 700;
+    transition: background 0.12s, transform 0.08s;
   }
+  .suggested-badge:hover { background: #e6b200; transform: scale(1.05); }
+  .suggested-badge:active { transform: scale(0.97); }
   .field input, .field textarea, .field select {
     width: 100%; padding: 10px 14px;
     border: 1.5px solid var(--border); border-radius: 6px;
@@ -2232,7 +2236,7 @@ function renderField(field, data, forceReadOnly = false) {
   }
 
   const lockBadge = locked ? '<span class="locked-badge">BLOQUEADO</span>'
-                           : (suggested ? '<span class="suggested-badge">💡 SUGERIDO</span>' : '');
+                           : (suggested ? `<button class="suggested-badge" onclick="restoreSuggested('${field.key}')" title="Restaurar el texto sugerido por el administrador">💡 SUGERIDO</button>` : '');
   const importBtn = (!locked && field.importTarget)
     ? `<button class="btn btn-sm" onclick="openImportModal('${field.importTarget}')"
         style="background:#1a6fad;color:white;font-size:11px;padding:3px 10px;margin-left:8px">
@@ -2671,6 +2675,20 @@ function updateField(key, value) {
   if (key === 'modulo_codigo') state.modules[state.activeId].meta.code = value;
   if (key === 'curso') state.modules[state.activeId].meta.course = value;
   saveState();
+}
+
+function restoreSuggested(key) {
+  const suggested = adminConfig.lockedValues?.[key];
+  if (suggested === undefined || suggested === '') return;
+  const fieldDef = FIELD_DEFS.flatMap(s => s.fields).find(f => f.key === key);
+  if (!fieldDef) return;
+  if (fieldDef.type === 'textarea') {
+    const el = document.getElementById('rte_' + key);
+    if (el) { el.innerHTML = suggested; rteUpdate(key); }
+  } else {
+    const el = document.getElementById('field_text_' + key);
+    if (el) { el.value = suggested; updateField(key, suggested); }
+  }
 }
 
 function updateTableCell(fieldKey, rowIdx, colIdx, value) {
