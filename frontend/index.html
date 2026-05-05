@@ -1265,11 +1265,9 @@ const DEFAULT_ADMIN_CONFIG = {
   password: 'admin1234',
   lockedFields: {},   // { fieldKey: true/false }
   lockedValues: {},   // { fieldKey: "valor fijado por admin" }
-  globalValues: {     // Valores comunes predefinidos por admin
+  globalValues: {     // Valores comunes predefinidos por admin (genéricos, no específicos de ciclo)
     centro_nombre: 'IES Miguel de Molinos',
     centro_direccion: 'C/ Gabriel García Márquez, 20 – 50018 Zaragoza',
-    decreto_titulo: 'Real Decreto 127/2014, de 28 de febrero',
-    decreto_aragon: 'ORDEN ECD/841/2024, de 25 de julio',
     plataforma: 'iesmigueldemolinos.aeducar.es',
     evaluacion_continua_umbral: '50%',
     perdida_ec_horas: '27 horas',
@@ -1514,11 +1512,15 @@ async function loadModuleData(id) {
       },
       data: module.data || {},
     };
-    // Sincronizar adminConfig con los campos bloqueados del perfil del ciclo
+    // Sincronizar adminConfig con los valores actuales del perfil del ciclo.
+    // Se usa lockedValues (del perfil, devuelto por el servidor) para que
+    // los cambios del admin se reflejen aunque la programación sea anterior.
     if (module.lockedKeys?.length) {
       module.lockedKeys.forEach(k => {
         adminConfig.lockedFields[k] = true;
-        if (module.data[k] !== undefined) adminConfig.lockedValues[k] = module.data[k];
+        if (module.lockedValues?.[k] !== undefined) {
+          adminConfig.lockedValues[k] = module.lockedValues[k];
+        }
       });
     }
     return state.modules[id];

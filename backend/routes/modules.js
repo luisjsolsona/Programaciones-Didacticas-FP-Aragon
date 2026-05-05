@@ -100,9 +100,11 @@ router.post('/', requireAuth, (req, res) => {
   // Usar el ciclo indicado, o el primero de los ciclos del docente
   const effectiveCicloId = cicloId || req.user.cicloIds[0] || null;
 
-  // Aplicar campos sugeridos del ciclo como valores iniciales (el usuario puede cambiarlos)
+  // Aplicar campos sugeridos del ciclo como valores iniciales.
+  // lockedFields sobreescribe data para que los valores del perfil del admin
+  // no queden tapados por los globalValues hardcodeados del cliente.
   const lockedFields = getLockedFields(effectiveCicloId);
-  const finalData    = { ...lockedFields, ...data };
+  const finalData    = { ...data, ...lockedFields };
 
   const result = db.prepare(`
     INSERT INTO programaciones (user_id, ciclo_id, titulo, codigo, data)
@@ -165,8 +167,9 @@ router.get('/:id', requireAuth, (req, res) => {
       created_at:   row.created_at,
       updated_at:   row.updated_at,
       data,
-      lockedKeys,   // El frontend usa esto para saber qué campos son de solo lectura
-      readOnly,     // true si el usuario solo puede ver, no editar
+      lockedKeys,    // El frontend usa esto para saber qué campos son sugeridos
+      lockedValues:  lockedFields,  // Valores actuales del perfil para pre-rellenar
+      readOnly,      // true si el usuario solo puede ver, no editar
     }
   });
 });
