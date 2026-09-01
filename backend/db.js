@@ -93,7 +93,7 @@ if (!adminExists) {
     VALUES ('admin', ?, 'admin', 'Administrador')
   `).run(hash);
 
-  console.log('[DB] Usuario admin creado con contraseña:', rawPassword);
+  console.log('[DB] Usuario admin creado. La contraseña es la que hayas puesto en ADMIN_PASSWORD (no se muestra aquí por seguridad).');
   console.log('[DB] ⚠️  Cambia la contraseña tras el primer login.');
 }
 
