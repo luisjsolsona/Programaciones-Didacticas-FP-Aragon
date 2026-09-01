@@ -244,6 +244,25 @@ const Modules = {
     display: flex; align-items: center; gap: 6px;
     letter-spacing: 0.01em;
   }
+  /* Campos recomendados — zona fija + zona docente */
+  .recommended-wrap {
+    border: 1.5px solid var(--locked-border); border-radius: 8px; overflow: hidden;
+  }
+  .recommended-fixed {
+    background: var(--locked-bg); border-bottom: 1.5px dashed var(--locked-border);
+    padding: 8px 12px;
+  }
+  .recommended-extra { background: white; padding: 8px 12px 10px; }
+  .recommended-extra input[type="text"] {
+    width: 100%; border: 1.5px solid var(--border); border-radius: 6px;
+    padding: 8px 12px; font-size: 13px; font-family: 'DM Sans', sans-serif;
+  }
+  .recommended-extra .rich-editor-wrap { margin-top: 4px; }
+  .recommended-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--text-muted); margin-bottom: 4px;
+  }
+
   .locked-badge {
     background: var(--navy); color: var(--gold);
     font-size: 9px; padding: 2px 5px; border-radius: 3px; letter-spacing: 0.05em;
@@ -1887,14 +1906,26 @@ function renderMainContent() {
       section.fields.forEach(field => {
         if (field.type === 'textarea') {
           const locked = isReadOnly || !!(adminConfig.lockedFields?.[field.key]);
-          if (locked) return;
+          if (locked) {
+            // Campo recomendado: poblar la zona de aportación del docente
+            const extraKey = field.key + '_extra';
+            const extraEl = document.getElementById('rte_' + extraKey);
+            if (extraEl && data[extraKey]) extraEl.innerHTML = data[extraKey];
+            return;
+          }
           const el = document.getElementById('rte_' + field.key);
           if (!el) return;
           const val = adminConfig.lockedValues?.[field.key] || data[field.key] || '';
           if (val) el.innerHTML = val;
         } else if (field.type === 'text') {
           const locked = isReadOnly || !!(adminConfig.lockedFields?.[field.key]);
-          if (locked) return; // los bloqueados tienen readonly en el HTML
+          if (locked) {
+            // Campo recomendado: poblar la zona de aportación del docente
+            const extraKey = field.key + '_extra';
+            const extraEl = document.getElementById('field_text_' + extraKey);
+            if (extraEl && data[extraKey]) extraEl.value = data[extraKey];
+            return;
+          }
           const el = document.getElementById('field_text_' + field.key);
           if (!el) return;
           const val = adminConfig.lockedValues?.[field.key] || data[field.key] || '';
@@ -1959,11 +1990,42 @@ function renderField(field, data, forceReadOnly = false) {
       placeholder="${field.placeholder||''}">`;
   } else if (field.type === 'textarea') {
     const tall = field.tall ? 'tall' : '';
-    const lockedCls = locked ? 'locked' : '';
     if (locked) {
-      innerHtml = `<div class="rich-editor-wrap locked">
-        <div class="rich-content ${tall} locked" style="min-height:80px">${value || ''}</div>
-      </div>`;
+      // ── Campo recomendado: zona fija + zona editable del docente ──
+      const extraKey = field.key + '_extra';
+      const extraVal = data[extraKey] || '';
+      innerHtml = `
+        <div class="recommended-wrap">
+          <div class="recommended-fixed">
+            <div class="recommended-label">📌 Valor recomendado (no editable)</div>
+            <div class="rich-content ${tall} locked" style="min-height:60px">${value || ''}</div>
+          </div>
+          <div class="recommended-extra">
+            <div class="recommended-label">✏️ Tu aportación (se añade al anterior)</div>
+            <div class="rich-editor-wrap" id="wrap_${extraKey}">
+              <div class="rich-toolbar" id="toolbar_${extraKey}">
+                <button onmousedown="event.preventDefault();rte('bold','${extraKey}')" title="Negrita"><b>B</b></button>
+                <button onmousedown="event.preventDefault();rte('italic','${extraKey}')" title="Cursiva"><i>I</i></button>
+                <button onmousedown="event.preventDefault();rte('underline','${extraKey}')" title="Subrayado" style="text-decoration:underline">U</button>
+                <div class="toolbar-sep"></div>
+                <button onmousedown="event.preventDefault();rte('insertUnorderedList','${extraKey}')" title="Lista">≡</button>
+                <button onmousedown="event.preventDefault();rte('insertOrderedList','${extraKey}')" title="Numerada">1.</button>
+                <button onmousedown="event.preventDefault();insertChecklist('${extraKey}')" title="Checklist">☑</button>
+                <div class="toolbar-sep"></div>
+                <button onmousedown="event.preventDefault();rte('removeFormat','${extraKey}')" title="Quitar formato" style="font-size:11px;font-family:sans-serif">✕</button>
+              </div>
+              <div class="rich-content ${tall}"
+                id="rte_${extraKey}"
+                contenteditable="true"
+                data-key="${extraKey}"
+                data-placeholder="Escribe aquí tu aportación adicional…"
+                oninput="rteUpdate('${extraKey}')"
+                onkeydown="rteKeyDown(event,'${extraKey}')"
+                onpaste="rtePaste(event,'${extraKey}')"
+              ></div>
+            </div>
+          </div>
+        </div>`;
     } else {
       const fieldKey = field.key;
       innerHtml = `<div class="rich-editor-wrap" id="wrap_${fieldKey}">
@@ -1994,17 +2056,33 @@ function renderField(field, data, forceReadOnly = false) {
     }
   } else {
     const extraOnchange = field.onchange ? ` ${field.onchange}` : '';
-    const lockedAttr = locked
-      ? 'readonly class="locked"'
-      : `onchange="updateField('${field.key}', this.value);${extraOnchange}"`;
-    const lockedCls  = locked ? 'locked' : '';
-    // Los inputs bloqueados muestran el valor directamente (no hay extensión que los toque)
-    // Los editables se rellenan vía setTimeout para evitar que Bitwarden los vacíe
-    const displayVal = locked ? escHtml(value) : '';
-    innerHtml = `<input type="text" id="field_text_${field.key}" class="${lockedCls}" ${lockedAttr} value="${displayVal}" placeholder="${field.placeholder||''}">`;
+    if (locked) {
+      // ── Campo recomendado texto corto: zona fija + zona editable ──
+      const extraKey = field.key + '_extra';
+      const extraVal = data[extraKey] || '';
+      innerHtml = `
+        <div class="recommended-wrap">
+          <div class="recommended-fixed" style="padding:8px 12px">
+            <div class="recommended-label">📌 Valor recomendado (no editable)</div>
+            <div style="font-size:13px;color:var(--text)">${escHtml(value)}</div>
+          </div>
+          <div class="recommended-extra">
+            <div class="recommended-label">✏️ Tu aportación (se añade al anterior)</div>
+            <input type="text" id="field_text_${extraKey}"
+              value="${escHtml(extraVal)}"
+              placeholder="Escribe aquí tu aportación adicional…"
+              onchange="updateField('${extraKey}', this.value)${extraOnchange ? '; ' + extraOnchange : ''}">
+          </div>
+        </div>`;
+    } else {
+      const displayVal = '';
+      innerHtml = `<input type="text" id="field_text_${field.key}"
+        onchange="updateField('${field.key}', this.value);${extraOnchange}"
+        value="${displayVal}" placeholder="${field.placeholder||''}">`;
+    }
   }
 
-  const lockBadge = locked ? '<span class="locked-badge">BLOQUEADO</span>' : '';
+  const lockBadge = locked ? '<span class="locked-badge">RECOMENDADO</span>' : '';
   const importBtn = (!locked && field.importTarget)
     ? `<button class="btn btn-sm" onclick="openImportModal('${field.importTarget}')"
         style="background:#1a6fad;color:white;font-size:11px;padding:3px 10px;margin-left:8px">
