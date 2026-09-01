@@ -34,10 +34,12 @@ router.post('/login', (req, res) => {
     return res.status(400).json({ error: 'Usuario y contraseña son obligatorios.' });
   }
 
+  // Buscar el usuario en la BD (también traemos el código del ciclo para el frontend)
   const user = db.prepare(`
-    SELECT id, username, password_hash, role, nombre, activo
-    FROM users
-    WHERE username = ? AND activo = 1
+    SELECT u.*, cp.cod AS cicloCod, cp.nombre AS cicloNombre
+    FROM users u
+    LEFT JOIN ciclo_profiles cp ON cp.id = u.ciclo_id
+    WHERE u.username = ? AND u.activo = 1
   `).get(username);
 
   if (!user) {
@@ -46,25 +48,18 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
 
+  // Verificar contraseña contra el hash almacenado
   const valid = bcrypt.compareSync(password, user.password_hash);
   if (!valid) {
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
 
-  // Obtener todos los ciclos del usuario
-  const ciclos = db.prepare(`
-    SELECT cp.id, cp.cod, cp.nombre
-    FROM user_ciclos uc
-    JOIN ciclo_profiles cp ON cp.id = uc.ciclo_id
-    WHERE uc.user_id = ?
-    ORDER BY cp.nombre ASC
-  `).all(user.id);
-
+  // Generar JWT con los datos mínimos necesarios
   const token = jwt.sign(
     {
-      userId:   user.id,
-      role:     user.role,
-      cicloIds: ciclos.map(c => c.id),
+      userId:  user.id,
+      role:    user.role,
+      cicloId: user.ciclo_id || null,
     },
     SECRET,
     { expiresIn: TOKEN_TTL }
@@ -78,13 +73,16 @@ router.post('/login', (req, res) => {
     maxAge: 8 * 60 * 60 * 1000, // 8 horas en ms
   });
 
+  // Devolver los datos públicos del usuario (sin hash ni datos sensibles)
   res.json({
     user: {
-      id:       user.id,
-      username: user.username,
-      nombre:   user.nombre,
-      role:     user.role,
-      ciclos,   // array de { id, cod, nombre }
+      id:          user.id,
+      username:    user.username,
+      nombre:      user.nombre,
+      role:        user.role,
+      cicloId:     user.ciclo_id,
+      cicloCod:    user.cicloCod,
+      cicloNombre: user.cicloNombre,
     }
   });
 });
@@ -105,25 +103,20 @@ router.post('/logout', (req, res) => {
 // =============================================================
 router.get('/me', requireAuth, (req, res) => {
   const user = db.prepare(`
-    SELECT id, username, nombre, role
-    FROM users
-    WHERE id = ? AND activo = 1
+    SELECT u.id, u.username, u.nombre, u.role, u.ciclo_id,
+           cp.cod AS cicloCod, cp.nombre AS cicloNombre
+    FROM users u
+    LEFT JOIN ciclo_profiles cp ON cp.id = u.ciclo_id
+    WHERE u.id = ? AND u.activo = 1
   `).get(req.user.id);
 
   if (!user) {
+    // El usuario fue desactivado mientras tenía sesión abierta
     res.clearCookie('token');
     return res.status(401).json({ error: 'Usuario no encontrado o desactivado.' });
   }
 
-  const ciclos = db.prepare(`
-    SELECT cp.id, cp.cod, cp.nombre
-    FROM user_ciclos uc
-    JOIN ciclo_profiles cp ON cp.id = uc.ciclo_id
-    WHERE uc.user_id = ?
-    ORDER BY cp.nombre ASC
-  `).all(user.id);
-
-  res.json({ user: { ...user, ciclos } });
+  res.json({ user });
 });
 
 module.exports = router;

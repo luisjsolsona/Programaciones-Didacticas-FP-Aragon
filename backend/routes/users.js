@@ -5,10 +5,6 @@
 // Las de creación/edición/borrado solo las puede usar el admin.
 // Un docente puede cambiar su propia contraseña.
 //
-// Los ciclos de un usuario se almacenan en la tabla user_ciclos
-// (relación muchos-a-muchos). El campo cicloIds del body es un
-// array de IDs de ciclo_profiles.
-//
 // Rutas:
 //   GET    /api/users              — Listar todos los docentes
 //   POST   /api/users              — Crear docente (admin)
@@ -25,87 +21,56 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
-// -------------------------------------------------------------
-// Helper: devuelve los ciclos asignados a un usuario
-// -------------------------------------------------------------
-function getUserCiclos(userId) {
-  return db.prepare(`
-    SELECT cp.id, cp.cod, cp.nombre
-    FROM user_ciclos uc
-    JOIN ciclo_profiles cp ON cp.id = uc.ciclo_id
-    WHERE uc.user_id = ?
-    ORDER BY cp.nombre ASC
-  `).all(userId);
-}
-
-// -------------------------------------------------------------
-// Helper: reemplaza todos los ciclos de un usuario
-// Recibe un array de cicloIds (puede estar vacío)
-// -------------------------------------------------------------
-function setUserCiclos(userId, cicloIds) {
-  db.prepare('DELETE FROM user_ciclos WHERE user_id = ?').run(userId);
-  if (!cicloIds || cicloIds.length === 0) return;
-
-  const insert = db.prepare(
-    'INSERT OR IGNORE INTO user_ciclos (user_id, ciclo_id) VALUES (?, ?)'
-  );
-  const insertMany = db.transaction((ids) => {
-    for (const cid of ids) insert.run(userId, cid);
-  });
-  insertMany(cicloIds);
-}
-
 // =============================================================
 // GET /api/users — Listar docentes (solo admin)
+// Devuelve todos los usuarios con su ciclo asignado
 // =============================================================
 router.get('/', requireAdmin, (req, res) => {
   const users = db.prepare(`
-    SELECT id, username, nombre, role, activo, created_at
-    FROM users
-    ORDER BY role DESC, username ASC
+    SELECT u.id, u.username, u.nombre, u.role, u.activo, u.created_at,
+           u.ciclo_id, cp.cod AS cicloCod, cp.nombre AS cicloNombre
+    FROM users u
+    LEFT JOIN ciclo_profiles cp ON cp.id = u.ciclo_id
+    ORDER BY u.role DESC, u.username ASC
   `).all();
 
-  const result = users.map(u => ({ ...u, ciclos: getUserCiclos(u.id) }));
-  res.json({ users: result });
+  res.json({ users });
 });
 
 // =============================================================
 // POST /api/users — Crear docente (solo admin)
-// Body: { username, password, nombre, cicloIds }
-// cicloIds: array de IDs de ciclo (opcional)
+// Body: { username, password, nombre, cicloId }
 // =============================================================
 router.post('/', requireAdmin, (req, res) => {
-  const { username, password, nombre, cicloIds = [] } = req.body;
+  const { username, password, nombre, cicloId } = req.body;
 
   if (!username || !password) {
     return res.status(400).json({ error: 'Usuario y contraseña son obligatorios.' });
   }
 
+  // Verificar que el username no está en uso
   const exists = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
   if (exists) {
     return res.status(409).json({ error: 'El nombre de usuario ya existe.' });
   }
 
-  // Validar que todos los ciclos existen
-  const ids = Array.isArray(cicloIds) ? cicloIds.map(Number).filter(Boolean) : [];
-  for (const cid of ids) {
-    const ciclo = db.prepare('SELECT id FROM ciclo_profiles WHERE id = ?').get(cid);
+  // Verificar que el ciclo existe si se proporciona
+  if (cicloId) {
+    const ciclo = db.prepare('SELECT id FROM ciclo_profiles WHERE id = ?').get(cicloId);
     if (!ciclo) {
-      return res.status(400).json({ error: `El ciclo con id ${cid} no existe.` });
+      return res.status(400).json({ error: 'El ciclo indicado no existe.' });
     }
   }
 
-  const hash   = bcrypt.hashSync(password, 12);
-  const result = db.prepare(`
-    INSERT INTO users (username, password_hash, role, nombre)
-    VALUES (?, ?, 'docente', ?)
-  `).run(username, hash, nombre || null);
+  const hash = bcrypt.hashSync(password, 12);
 
-  const newId = result.lastInsertRowid;
-  setUserCiclos(newId, ids);
+  const result = db.prepare(`
+    INSERT INTO users (username, password_hash, role, nombre, ciclo_id)
+    VALUES (?, ?, 'docente', ?, ?)
+  `).run(username, hash, nombre || null, cicloId || null);
 
   res.status(201).json({
-    user: { id: newId, username, nombre, ciclos: getUserCiclos(newId) }
+    user: { id: result.lastInsertRowid, username, nombre, cicloId }
   });
 });
 
@@ -116,61 +81,61 @@ router.post('/', requireAdmin, (req, res) => {
 router.get('/:id', requireAuth, (req, res) => {
   const targetId = parseInt(req.params.id);
 
+  // Un docente solo puede ver su propio perfil
   if (req.user.role !== 'admin' && req.user.id !== targetId) {
     return res.status(403).json({ error: 'No tienes permiso para ver este usuario.' });
   }
 
   const user = db.prepare(`
-    SELECT id, username, nombre, role, activo, created_at
-    FROM users WHERE id = ?
+    SELECT u.id, u.username, u.nombre, u.role, u.activo, u.created_at,
+           u.ciclo_id, cp.cod AS cicloCod, cp.nombre AS cicloNombre
+    FROM users u
+    LEFT JOIN ciclo_profiles cp ON cp.id = u.ciclo_id
+    WHERE u.id = ?
   `).get(targetId);
 
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado.' });
 
-  res.json({ user: { ...user, ciclos: getUserCiclos(targetId) } });
+  res.json({ user });
 });
 
 // =============================================================
 // PUT /api/users/:id — Editar docente (solo admin)
-// Body: { nombre?, cicloIds?, activo? }
-// cicloIds reemplaza la asignación completa de ciclos del usuario
+// Body: { nombre?, cicloId?, activo? }
+// No permite cambiar contraseña (usar /password) ni username
 // =============================================================
 router.put('/:id', requireAdmin, (req, res) => {
   const targetId = parseInt(req.params.id);
-  const { nombre, cicloIds, activo } = req.body;
+  const { nombre, cicloId, activo } = req.body;
 
+  // Leer datos actuales para no sobreescribir lo que no se manda
   const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
   if (!target) return res.status(404).json({ error: 'Usuario no encontrado.' });
   if (target.role === 'admin') {
     return res.status(403).json({ error: 'La cuenta admin no se puede modificar desde aquí.' });
   }
 
-  // Validar ciclos si se proporcionan
-  if (cicloIds !== undefined) {
-    const ids = Array.isArray(cicloIds) ? cicloIds.map(Number).filter(Boolean) : [];
-    for (const cid of ids) {
-      const ciclo = db.prepare('SELECT id FROM ciclo_profiles WHERE id = ?').get(cid);
-      if (!ciclo) return res.status(400).json({ error: `El ciclo con id ${cid} no existe.` });
-    }
+  // Verificar que el ciclo existe si se proporciona
+  if (cicloId) {
+    const ciclo = db.prepare('SELECT id FROM ciclo_profiles WHERE id = ?').get(parseInt(cicloId));
+    if (!ciclo) return res.status(400).json({ error: 'El ciclo indicado no existe.' });
   }
 
-  const newNombre = nombre  !== undefined ? (nombre || null)   : target.nombre;
-  const newActivo = activo  !== undefined ? (activo ? 1 : 0)   : target.activo;
+  // Solo actualizar los campos recibidos; preservar los demás
+  const newNombre = nombre  !== undefined ? (nombre || null)          : target.nombre;
+  const newCiclo  = cicloId !== undefined ? (cicloId ? parseInt(cicloId) : null) : target.ciclo_id;
+  const newActivo = activo  !== undefined ? (activo ? 1 : 0)          : target.activo;
 
   db.prepare(`
-    UPDATE users SET nombre = ?, activo = ? WHERE id = ?
-  `).run(newNombre, newActivo, targetId);
-
-  if (cicloIds !== undefined) {
-    const ids = Array.isArray(cicloIds) ? cicloIds.map(Number).filter(Boolean) : [];
-    setUserCiclos(targetId, ids);
-  }
+    UPDATE users SET nombre = ?, ciclo_id = ?, activo = ? WHERE id = ?
+  `).run(newNombre, newCiclo, newActivo, targetId);
 
   res.json({ ok: true });
 });
 
 // =============================================================
 // DELETE /api/users/:id — Eliminar docente (solo admin)
+// No permite eliminar la cuenta admin
 // =============================================================
 router.delete('/:id', requireAdmin, (req, res) => {
   const targetId = parseInt(req.params.id);
@@ -181,7 +146,7 @@ router.delete('/:id', requireAdmin, (req, res) => {
     return res.status(403).json({ error: 'No se puede eliminar la cuenta admin.' });
   }
 
-  // user_ciclos se elimina en cascada por FK ON DELETE CASCADE
+  // Al eliminar el usuario, sus programaciones se eliminan en cascada (FK CASCADE)
   db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
 
   res.json({ ok: true });
@@ -204,6 +169,7 @@ router.put('/:id/password', requireAuth, (req, res) => {
   const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
   if (!target) return res.status(404).json({ error: 'Usuario no encontrado.' });
 
+  // Si no es admin, debe verificar su contraseña actual
   if (req.user.role !== 'admin') {
     if (req.user.id !== targetId) {
       return res.status(403).json({ error: 'No tienes permiso para cambiar esta contraseña.' });

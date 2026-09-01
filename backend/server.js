@@ -20,7 +20,6 @@ const authRoutes     = require('./routes/auth');
 const usersRoutes    = require('./routes/users');
 const profilesRoutes = require('./routes/profiles');
 const modulesRoutes  = require('./routes/modules');
-const backupRoutes   = require('./routes/backup');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -29,8 +28,8 @@ const PORT = process.env.PORT || 3001;
 // MIDDLEWARES GLOBALES
 // =============================================================
 
-// Parsear cuerpos JSON en las peticiones (límite 50 MB para backups completos)
-app.use(express.json({ limit: '50mb' }));
+// Parsear cuerpos JSON en las peticiones
+app.use(express.json());
 
 // Parsear cookies (necesario para leer el JWT de la cookie httpOnly)
 app.use(cookieParser());
@@ -70,10 +69,6 @@ app.use('/api/profiles', profilesRoutes);
 // PUT    /api/modules/:id      — Editar programación (solo propietario o admin)
 // DELETE /api/modules/:id      — Eliminar programación (solo propietario o admin)
 app.use('/api/modules', modulesRoutes);
-
-// GET  /api/backup         — Exportar todo (solo admin)
-// POST /api/backup/restore — Restaurar desde backup v3 (solo admin)
-app.use('/api/backup', backupRoutes);
 
 // =============================================================
 // HEALTH CHECK

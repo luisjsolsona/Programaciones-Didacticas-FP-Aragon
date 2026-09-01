@@ -64,7 +64,7 @@ router.get('/', requireAuth, (req, res) => {
       ORDER BY p.updated_at DESC
     `).all();
   } else {
-    // Docente ve las propias + las de cualquiera de sus ciclos
+    // Docente ve las propias + las del mismo ciclo (sin datos, solo metadatos)
     rows = db.prepare(`
       SELECT p.id, p.titulo, p.codigo, p.created_at, p.updated_at,
              p.user_id, p.ciclo_id,
@@ -75,11 +75,9 @@ router.get('/', requireAuth, (req, res) => {
       JOIN users u ON u.id = p.user_id
       LEFT JOIN ciclo_profiles cp ON cp.id = p.ciclo_id
       WHERE p.user_id = ?
-         OR p.ciclo_id IN (
-              SELECT ciclo_id FROM user_ciclos WHERE user_id = ?
-            )
+         OR p.ciclo_id = ?
       ORDER BY p.updated_at DESC
-    `).all(req.user.id, req.user.id, req.user.id);
+    `).all(req.user.id, req.user.id, req.user.cicloId || -1);
   }
 
   res.json({ modules: rows });
@@ -97,12 +95,11 @@ router.post('/', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'El título (nombre del módulo) es obligatorio.' });
   }
 
-  // Usar el ciclo indicado, o el primero de los ciclos del docente
-  const effectiveCicloId = cicloId || req.user.cicloIds[0] || null;
+  // Usar el ciclo del docente por defecto
+  const effectiveCicloId = cicloId || req.user.cicloId || null;
 
-  // Aplicar campos sugeridos del ciclo como valores iniciales.
-  // lockedFields sobreescribe data para que los valores del perfil del admin
-  // no queden tapados por los globalValues hardcodeados del cliente.
+  // Mezclar campos bloqueados del ciclo en los datos antes de guardar
+  // Los campos bloqueados siempre prevalecen sobre lo que envíe el cliente
   const lockedFields = getLockedFields(effectiveCicloId);
   const finalData    = { ...data, ...lockedFields };
 
@@ -139,18 +136,19 @@ router.get('/:id', requireAuth, (req, res) => {
 
   if (!row) return res.status(404).json({ error: 'Programación no encontrada.' });
 
-  const isOwner   = row.user_id  === req.user.id;
-  const isAdmin   = req.user.role === 'admin';
-  const sameCiclo = row.ciclo_id && req.user.cicloIds.includes(row.ciclo_id);
-  const readOnly  = !isOwner && !isAdmin;
+  // Comprobar permisos de acceso
+  const isOwner    = row.user_id  === req.user.id;
+  const isAdmin    = req.user.role === 'admin';
+  const sameCiclo  = row.ciclo_id && row.ciclo_id === req.user.cicloId;
+  const readOnly   = !isOwner && !isAdmin; // docente de mismo ciclo → solo lectura
 
   if (!isOwner && !isAdmin && !sameCiclo) {
     return res.status(403).json({ error: 'No tienes acceso a esta programación.' });
   }
 
-  // Devolver los datos tal como los guardó el usuario (las sugerencias se aplican al crear)
+  // Mezclar campos bloqueados para que el frontend los reciba siempre correctos
   const lockedFields = getLockedFields(row.ciclo_id);
-  const data         = JSON.parse(row.data || '{}');
+  const data         = { ...JSON.parse(row.data || '{}'), ...lockedFields };
   const lockedKeys   = Object.keys(lockedFields);
 
   res.json({
@@ -167,9 +165,8 @@ router.get('/:id', requireAuth, (req, res) => {
       created_at:   row.created_at,
       updated_at:   row.updated_at,
       data,
-      lockedKeys,    // El frontend usa esto para saber qué campos son sugeridos
-      lockedValues:  lockedFields,  // Valores actuales del perfil para pre-rellenar
-      readOnly,      // true si el usuario solo puede ver, no editar
+      lockedKeys,   // El frontend usa esto para saber qué campos son de solo lectura
+      readOnly,     // true si el usuario solo puede ver, no editar
     }
   });
 });
@@ -194,9 +191,10 @@ router.put('/:id', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'No tienes permiso para editar esta programación.' });
   }
 
-  // El usuario puede editar todos los campos, incluidos los que tenían texto sugerido
+  // Los campos bloqueados del ciclo siempre prevalecen (no se pueden editar)
+  const lockedFields = getLockedFields(row.ciclo_id);
   const currentData  = JSON.parse(row.data || '{}');
-  const finalData    = { ...currentData, ...(data || {}) };
+  const finalData    = { ...currentData, ...(data || {}), ...lockedFields };
 
   db.prepare(`
     UPDATE programaciones
