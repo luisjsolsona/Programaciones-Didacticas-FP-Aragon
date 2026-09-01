@@ -47,8 +47,21 @@ services:
     build: ./frontend
     container_name: pd_frontend
     restart: unless-stopped
-    ports:
-      # Puerto expuesto al host → acceso en http://localhost:3000
-      - "3000:80"
+    expose:
+      # Solo accesible dentro de las redes Docker del servidor (por Caddy);
+      # no se publica directamente al host para no exponerlo sin HTTPS.
+      - "80"
     depends_on:
       - backend
+    networks:
+      - default
+      - web
+
+# Red externa compartida por todos los despliegues Docker del VPS (mistikedu,
+# FPLabs, y ahora esta), para que Caddy pueda hacer reverse_proxy hasta aquí
+# por el nombre del contenedor, sin exponer el puerto directamente a
+# Internet. Ya existe en el VPS (se creó una vez con "docker network create
+# web" al desplegar FPLabs) -- no hace falta volver a crearla.
+networks:
+  web:
+    external: true
