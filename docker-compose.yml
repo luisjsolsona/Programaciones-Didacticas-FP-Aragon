@@ -25,11 +25,14 @@ services:
     volumes:
       # La BD sqlite se guarda en ./data/db.sqlite (fuera del contenedor)
       - ./data:/app/data
+    # JWT_SECRET y ADMIN_PASSWORD viven en ./.env (fuera de git, ver
+    # .gitignore) en vez de aquí en texto plano -- mismo criterio que ya usa
+    # mistikedu-web para sus propios secretos. Crea ese fichero a mano en el
+    # servidor, junto a este docker-compose.yml, con este contenido:
+    #   JWT_SECRET=xxxx
+    #   ADMIN_PASSWORD=xxxx
+    env_file: .env
     environment:
-      # Secreto para firmar los JWT — CAMBIAR en producción
-      - JWT_SECRET=cambia_este_secreto_en_produccion
-      # Contraseña inicial del admin (se hashea al arrancar si no existe)
-      - ADMIN_PASSWORD=admin1234
       # Puerto en el que escucha Express (interno)
       - PORT=3001
       # Entorno: development | production
