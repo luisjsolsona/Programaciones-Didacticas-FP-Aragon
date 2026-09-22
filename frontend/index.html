@@ -18,7 +18,12 @@ async function apiFetch(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error || `Error ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(json.error || `Error ${res.status}`);
+    err.status = res.status;
+    err.data   = json;
+    throw err;
+  }
   return json;
 }
 
@@ -1454,20 +1459,57 @@ function setSaveIndicator(status, msg) {
 }
 
 // Guarda el módulo activo en el servidor
+let _saveConflict = false;   // true mientras se resuelve un conflicto de guardado
+
 async function saveState() {
-  if (!state.activeId) return;
+  if (!state.activeId || _saveConflict) return;
+  const id = state.activeId;
   setSaveIndicator('saving');
   try {
-    const mod = state.modules[state.activeId];
-    await Modules.update(state.activeId, {
+    const mod = state.modules[id];
+    const r = await Modules.update(id, {
       titulo: mod.meta.name,
       codigo: mod.meta.code,
       data:   mod.data,
+      ...(mod.version != null ? { expectedVersion: mod.version } : {}),
     });
+    if (r?.version != null) mod.version = r.version;
     setSaveIndicator('saved');
   } catch(e) {
+    if (e.status === 409) return handleSaveConflict(id);
     setSaveIndicator('error');
     console.error('saveState error:', e);
+  }
+}
+
+// Otra sesión (u otra persona) guardó esta programación después de abrirla
+async function handleSaveConflict(id) {
+  _saveConflict = true;
+  clearTimeout(_saveDebounceTimer);
+  setSaveIndicator('error', '⚠️ Conflicto de guardado');
+  const reload = confirm(
+    '⚠️ Esta programación se ha guardado desde otra pestaña, otro equipo u otra persona ' +
+    'después de que la abrieras.\n\n' +
+    'ACEPTAR → cargar la versión guardada (se pierden tus últimos cambios).\n' +
+    'CANCELAR → sobrescribirla con lo que tienes en pantalla.'
+  );
+  try {
+    const mod = state.modules[id];
+    if (reload) {
+      await loadModuleData(id);
+      if (state.activeId === id) { applyModuleLocks(state.modules[id]); renderMainContent(); }
+      showStatus('Se ha cargado la versión guardada');
+      setSaveIndicator('idle');
+    } else {
+      const r = await Modules.update(id, { titulo: mod.meta.name, codigo: mod.meta.code, data: mod.data });
+      if (r?.version != null) mod.version = r.version;
+      setSaveIndicator('saved');
+    }
+  } catch (e) {
+    setSaveIndicator('error');
+    showStatus('Error: ' + e.message, 'error');
+  } finally {
+    _saveConflict = false;
   }
 }
 
@@ -1491,6 +1533,7 @@ async function loadState() {
           name:          m.titulo,
           code:          m.codigo,
           cicloId:       m.ciclo_id || null,
+          cicloCod:      m.cicloCod || '',
           course:        '',
           cycle:         m.cicloNombre || '',
           cicloNombre:   m.cicloNombre || '',
@@ -1518,12 +1561,14 @@ async function loadModuleData(id) {
         name:          module.titulo,
         code:          module.codigo,
         cicloId:       module.cicloId || null,
+        cicloCod:      module.cicloCod || '',
         course:        module.data?.curso || '',
         cycle:         module.cicloNombre || module.data?.ciclo || '',
         cicloNombre:   module.cicloNombre || '',
         docenteNombre: module.docenteNombre || module.username || '',
       },
       data: module.data || {},
+      version: module.version ?? null,   // bloqueo optimista
     };
     return state.modules[id];
   } catch(e) {
@@ -1941,6 +1986,8 @@ function renderMainContent() {
   const mod      = state.modules[state.activeId];
   const data     = mod.data || {};
   const isReadOnly = !!(mod.readOnly);  // docente viendo programación ajena
+  // Código del ciclo para los enlaces a CATEDU (perfil de ciclo o "(IFC201)" en el texto)
+  const cicloCodLink = mod.meta.cicloCod || (/\(([A-Z]{3}\d{3})\)/.exec(data.ciclo || '') || [])[1] || '';
 
   let html = `<div class="module-toolbar">
     <div class="module-toolbar-left">
@@ -2002,6 +2049,7 @@ function renderMainContent() {
   });
 
   html += `</div>`;
+  if (cicloCodLink) html = html.replace(/codciclo=IFC201/g, 'codciclo=' + encodeURIComponent(cicloCodLink));
   main.innerHTML = html;
 
   // Poblar los rich editors Y los inputs de texto DESPUÉS de que el DOM esté listo
@@ -2703,10 +2751,52 @@ function closePreview() {
 // ===================================================
 //  EXPORTAR WORD (via Claude API)
 // ===================================================
-function exportWord() {
+// Ajusta el HTML para la conversión a Word: desanida bloques dentro de
+// etiquetas en línea (<span><p>…) y convierte casillas en símbolos
+function normalizeForDocx(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const INLINE = 'span,b,strong,i,em,u,s,font,a,small,mark,sub,sup';
+  const BLOCK  = 'p,div,ul,ol,li,table,h1,h2,h3,h4,h5,h6,blockquote,pre,hr';
+  let changed = true;
+  while (changed) {
+    changed = false;
+    doc.body.querySelectorAll(INLINE).forEach(el => {
+      if (el.isConnected && el.querySelector(BLOCK)) { el.replaceWith(...el.childNodes); changed = true; }
+    });
+  }
+  doc.body.querySelectorAll('input[type="checkbox"]').forEach(i => i.replaceWith(i.hasAttribute('checked') ? '☑ ' : '☐ '));
+  doc.body.querySelectorAll('input').forEach(i => i.replaceWith(i.value || ''));
+  return '<!DOCTYPE html>' + doc.documentElement.outerHTML;
+}
+
+async function exportWord() {
   if (!state.activeId) return;
-  generateWordHtml(state.modules[state.activeId]);
-  showStatus('✔ Documento Word generado');
+  const mod  = state.modules[state.activeId];
+  const data = mod.data || {};
+  const filename = `programacion_${data.modulo_codigo || 'modulo'}_${data.curso || ''}`;
+  showLoading('Generando documento Word…');
+  try {
+    const html = normalizeForDocx(buildDocumentHtml(mod, data, 'word'));
+    const r = await fetch('/api/export/docx', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ html, title: data.modulo_nombre || mod.meta.name, filename }),
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `Error ${r.status}`);
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename.replace(/[^\w.\-]+/g, '_') + '.docx';
+    a.click(); URL.revokeObjectURL(url);
+    showStatus('✔ Documento Word (.docx) generado');
+  } catch (e) {
+    // Alternativa: el formato anterior (HTML con extensión .doc)
+    console.error('exportWord:', e);
+    generateWordHtml(mod);
+    showStatus('No se pudo generar el .docx; se ha descargado en formato .doc', 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 function generateWordHtml(mod) {
@@ -3497,39 +3587,27 @@ const NORMA_SMR = {
   ]
 };
 
-const PROXIES_LIST = [
-  u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
-  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-  u => `https://thingproxy.freeboard.io/fetch/${u}`
-];
-
-async function fetchViaProxyImport(url, timeoutMs = 10000) {
-  // 1. Intentar fetch directo (funciona con extensión CORS o si el servidor lo permite)
+// Lee una página de centrosdocentes.catedu.es a través del backend
+// (/api/catedu). Ya no hace falta extensión CORS ni proxies públicos.
+async function fetchViaProxyImport(url, timeoutMs = 20000) {
+  const ctrl = new AbortController();
+  const tid  = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const ctrl = new AbortController();
-    const tid  = setTimeout(() => ctrl.abort(), timeoutMs);
-    const r    = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(tid);
-    if (r.ok) {
-      const text = await r.text();
-      if (text?.trim().length > 200) return text;
+    const r = await fetch('/api/catedu?url=' + encodeURIComponent(url), {
+      credentials: 'include', signal: ctrl.signal,
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      console.warn('CATEDU:', j.error || r.status);
+      return null;
     }
-  } catch(_) {}
-
-  // 2. Fallback: proxies CORS
-  for (const makeUrl of PROXIES_LIST) {
-    try {
-      const ctrl = new AbortController();
-      const tid  = setTimeout(() => ctrl.abort(), timeoutMs);
-      const r    = await fetch(makeUrl(url), { signal: ctrl.signal });
-      clearTimeout(tid);
-      if (!r.ok) continue;
-      const text = await r.text();
-      try { const j = JSON.parse(text); if (j?.contents?.length > 200) return j.contents; } catch(_) {}
-      if (text?.trim().length > 200) return text;
-    } catch(_) { continue; }
+    const text = await r.text();
+    return text?.trim().length > 200 ? text : null;
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(tid);
   }
-  return null;
 }
 
 // ===================================================
@@ -4002,7 +4080,7 @@ async function doImportRas() {
 
   const html = await fetchViaProxyImport(importSelectedMod.urlRa, 15000);
   if (!html) {
-    setImportRaStatus('No se pudo conectar con CATEDU. Comprueba la conexión o activa la extensión CORS Unblock.', 'err');
+    setImportRaStatus('No se pudo conectar con CATEDU. CATEDU no responde; inténtalo de nuevo en unos minutos.', 'err');
     return;
   }
 
@@ -4172,6 +4250,36 @@ async function initApp(user) {
   renderModulesList();
   renderMainContent();
 }
+
+// ===================================================
+//  AVISO DE NUEVA VERSIÓN
+//  Compara la huella (ETag/Last-Modified) de index.html cada 5 min y al
+//  volver a la pestaña; si cambia, ofrece recargar.
+// ===================================================
+let _appFingerprint = null;
+async function getAppFingerprint() {
+  try {
+    const r = await fetch('/index.html', { method: 'HEAD', cache: 'no-store' });
+    return r.headers.get('etag') || r.headers.get('last-modified');
+  } catch (_) { return null; }
+}
+async function checkAppUpdate() {
+  const fp = await getAppFingerprint();
+  if (!fp) return;
+  if (!_appFingerprint) { _appFingerprint = fp; return; }
+  if (fp !== _appFingerprint && !document.getElementById('updateBanner')) {
+    const b = document.createElement('div');
+    b.id = 'updateBanner';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--gold);color:var(--navy);' +
+      'padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center;font-size:14px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.15)';
+    b.innerHTML = '🔄 Hay una versión nueva de la aplicación. Tus cambios ya están guardados.' +
+      '<button class="btn btn-primary btn-sm" style="background:var(--navy);color:white" onclick="location.reload()">Recargar ahora</button>';
+    document.body.appendChild(b);
+  }
+}
+checkAppUpdate();
+setInterval(checkAppUpdate, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkAppUpdate(); });
 
 // Intentar restaurar sesión al cargar la página (cookie JWT válida)
 (async () => {

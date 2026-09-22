@@ -30,6 +30,8 @@ const usersRoutes    = require('./routes/users');
 const profilesRoutes = require('./routes/profiles');
 const modulesRoutes  = require('./routes/modules');
 const backupRoutes   = require('./routes/backup');
+const cateduRoutes   = require('./routes/catedu');
+const exportRoutes   = require('./routes/export');
 
 const app  = express();
 
@@ -83,6 +85,12 @@ app.use('/api/modules', modulesRoutes);
 
 // GET/POST /api/backup — Copia completa: ciclos, docentes y programaciones (solo admin)
 app.use('/api/backup', backupRoutes);
+
+// GET /api/catedu?url=… — Lectura de centrosdocentes.catedu.es (importador)
+app.use('/api/catedu', cateduRoutes);
+
+// POST /api/export/docx — Genera el .docx de una programación
+app.use('/api/export', exportRoutes);
 
 // =============================================================
 // HEALTH CHECK

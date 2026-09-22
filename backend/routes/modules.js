@@ -55,7 +55,7 @@ router.get('/', requireAuth, (req, res) => {
   if (req.user.role === 'admin') {
     // Admin ve todo
     rows = db.prepare(`
-      SELECT p.id, p.titulo, p.codigo, p.created_at, p.updated_at,
+      SELECT p.id, p.titulo, p.codigo, p.created_at, p.updated_at, p.version,
              p.user_id, p.ciclo_id,
              u.username, u.nombre AS docenteNombre,
              cp.cod AS cicloCod, cp.nombre AS cicloNombre
@@ -67,7 +67,7 @@ router.get('/', requireAuth, (req, res) => {
   } else {
     // Docente ve las propias + las del mismo ciclo (sin datos, solo metadatos)
     rows = db.prepare(`
-      SELECT p.id, p.titulo, p.codigo, p.created_at, p.updated_at,
+      SELECT p.id, p.titulo, p.codigo, p.created_at, p.updated_at, p.version,
              p.user_id, p.ciclo_id,
              u.username, u.nombre AS docenteNombre,
              cp.cod AS cicloCod, cp.nombre AS cicloNombre,
@@ -172,6 +172,7 @@ router.get('/:id', requireAuth, (req, res) => {
       docenteNombre: row.docenteNombre,
       created_at:   row.created_at,
       updated_at:   row.updated_at,
+      version:      row.version,
       data,
       lockedKeys,   // El frontend usa esto para saber qué campos son de solo lectura
       readOnly,     // true si el usuario solo puede ver, no editar
@@ -183,7 +184,10 @@ router.get('/:id', requireAuth, (req, res) => {
 // PUT /api/modules/:id — Editar programación
 // Solo el propietario o el admin pueden editar
 // Los campos bloqueados del ciclo se sobrescriben siempre
-// Body: { titulo?, codigo?, data?, cicloId? } — cicloId permite cambiar de ciclo
+// Body: { titulo?, codigo?, data?, cicloId?, expectedVersion? }
+//   cicloId          → permite cambiar de ciclo
+//   expectedVersion  → bloqueo optimista: si la programación se ha guardado
+//                      desde otra sesión (version distinta) → 409
 // =============================================================
 router.put('/:id', requireAuth, (req, res) => {
   const moduleId = parseInt(req.params.id);
@@ -203,6 +207,16 @@ router.put('/:id', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'No tienes permiso para editar esta programación.' });
   }
 
+  // Bloqueo optimista
+  const { expectedVersion } = req.body;
+  if (expectedVersion !== undefined && expectedVersion !== null && Number(expectedVersion) !== row.version) {
+    return res.status(409).json({
+      error: 'La programación se ha modificado en otra sesión.',
+      currentVersion: row.version,
+      updated_at: row.updated_at,
+    });
+  }
+
   // Cambio de ciclo (opcional): docente solo a ciclos a los que pertenece
   let newCicloId = row.ciclo_id;
   if (cicloId !== undefined) {
@@ -219,7 +233,8 @@ router.put('/:id', requireAuth, (req, res) => {
 
   db.prepare(`
     UPDATE programaciones
-    SET titulo = ?, codigo = ?, data = ?, ciclo_id = ?, updated_at = datetime('now')
+    SET titulo = ?, codigo = ?, data = ?, ciclo_id = ?,
+        version = version + 1, updated_at = datetime('now')
     WHERE id = ?
   `).run(
     titulo ?? row.titulo,
@@ -229,7 +244,8 @@ router.put('/:id', requireAuth, (req, res) => {
     moduleId
   );
 
-  res.json({ ok: true });
+  const upd = db.prepare('SELECT version, updated_at FROM programaciones WHERE id = ?').get(moduleId);
+  res.json({ ok: true, version: upd.version, updated_at: upd.updated_at });
 });
 
 // =============================================================

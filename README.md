@@ -187,7 +187,7 @@ La herramienta se conecta en tiempo real al portal [centrosdocentes.catedu.es](h
 - Los **módulos** de cada ciclo: código, nombre, horas semanales y horas totales
 - Los **Resultados de Aprendizaje (RAs)** y sus **Criterios de Evaluación (CEs)** oficiales, codificados automáticamente
 
-> **Nota CORS:** al ser una petición cross-origin desde el navegador, la importación usa proxies CORS públicos como fallback. Si los proxies están lentos o caídos, puedes instalar una extensión de navegador tipo *CORS Unblock* para que la petición vaya directa.
+> **Importación desde CATEDU:** las páginas de centrosdocentes.catedu.es se leen a través del backend (`/api/catedu`), así que no hace falta ninguna extensión de navegador ni proxies externos. Solo se permiten URLs de ese dominio.
 
 ---
 

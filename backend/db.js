@@ -94,6 +94,12 @@ if (!db.prepare(`SELECT 1 FROM pragma_table_info('users') WHERE name = 'token_ve
   db.exec(`ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0`);
 }
 
+// Columna version en programaciones: bloqueo optimista al guardar
+// (detecta si otra sesión ha guardado entretanto)
+if (!db.prepare(`SELECT 1 FROM pragma_table_info('programaciones') WHERE name = 'version'`).get()) {
+  db.exec(`ALTER TABLE programaciones ADD COLUMN version INTEGER NOT NULL DEFAULT 0`);
+}
+
 // Tabla de migraciones puntuales (para ejecutar cada una una sola vez)
 db.exec(`CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)`);
 
