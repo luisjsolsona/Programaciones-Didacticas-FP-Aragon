@@ -20,6 +20,7 @@ const authRoutes     = require('./routes/auth');
 const usersRoutes    = require('./routes/users');
 const profilesRoutes = require('./routes/profiles');
 const modulesRoutes  = require('./routes/modules');
+const backupRoutes   = require('./routes/backup');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -29,7 +30,7 @@ const PORT = process.env.PORT || 3001;
 // =============================================================
 
 // Parsear cuerpos JSON en las peticiones
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
 
 // Parsear cookies (necesario para leer el JWT de la cookie httpOnly)
 app.use(cookieParser());
@@ -69,6 +70,9 @@ app.use('/api/profiles', profilesRoutes);
 // PUT    /api/modules/:id      — Editar programación (solo propietario o admin)
 // DELETE /api/modules/:id      — Eliminar programación (solo propietario o admin)
 app.use('/api/modules', modulesRoutes);
+
+// GET/POST /api/backup — Copia completa: ciclos, docentes y programaciones (solo admin)
+app.use('/api/backup', backupRoutes);
 
 // =============================================================
 // HEALTH CHECK

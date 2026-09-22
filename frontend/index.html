@@ -1505,21 +1505,33 @@ function ddClearData() {
     .catch(e => showStatus('Error al borrar: ' + e.message, 'error'));
 }
 
-function ddExportBackup() {
+async function ddExportBackup() {
   document.getElementById('dataDropdown').classList.remove('open');
-  const backup = {
-    version: 2,
-    exportDate: new Date().toISOString(),
-    data: state
-  };
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `backup_programaciones_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showStatus('📦 Copia de seguridad exportada');
+  try {
+    showStatus('Preparando copia…');
+    let backup;
+    if (currentUser?.role === 'admin') {
+      // Admin: copia completa del servidor (ciclos, docentes y programaciones)
+      backup = await apiFetch('/backup');
+    } else {
+      // Docente: sus programaciones con los datos completos (no solo metadatos)
+      const own = Object.entries(state.modules).filter(([, m]) => !m.readOnly);
+      const modules = {};
+      for (const [id] of own) {
+        const { module } = await Modules.get(id);
+        modules[id] = { meta: { name: module.titulo, code: module.codigo }, data: module.data || {} };
+      }
+      backup = { version: 2, exportDate: new Date().toISOString(), data: { modules } };
+    }
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `backup_programaciones_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showStatus('📦 Copia de seguridad exportada');
+  } catch (e) { showStatus('Error al exportar: ' + e.message, 'error'); }
 }
 
 function ddRestoreBackup() {
@@ -1535,6 +1547,16 @@ async function handleRestoreBackup(event) {
   reader.onload = async e => {
     try {
       const parsed = JSON.parse(e.target.result);
+      if (parsed.version === 3) {
+        if (currentUser?.role !== 'admin') throw new Error('Solo el administrador puede restaurar una copia completa.');
+        const msg = `Se restaurarán ${parsed.ciclos?.length||0} ciclo(s), ${parsed.users?.length||0} usuario(s) y ${parsed.programaciones?.length||0} programación(es).\n\nCiclos y usuarios existentes se actualizan; las programaciones se AÑADEN. ¿Continuar?`;
+        if (!confirm(msg)) return;
+        showStatus('Restaurando…');
+        const { stats } = await apiFetch('/backup', { method: 'POST', body: parsed });
+        await loadState(); renderModulesList(); renderMainContent();
+        showStatus(`✔ Restaurados ${stats.ciclos} ciclos, ${stats.users} usuarios, ${stats.programaciones} programaciones`);
+        return;
+      }
       const modules = parsed.version === 2
         ? Object.values(parsed.data?.modules || {})
         : Object.values(parsed.modules || {});
