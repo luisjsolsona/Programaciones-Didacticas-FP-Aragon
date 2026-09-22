@@ -14,8 +14,9 @@ const router = express.Router();
 router.get('/', requireAdmin, (req, res) => {
   const ciclos = db.prepare(`SELECT id, cod, nombre, locked_fields, created_at FROM ciclo_profiles`).all();
   const users  = db.prepare(`SELECT id, username, password_hash, role, ciclo_id, nombre, activo, created_at FROM users`).all();
-  const progs  = db.prepare(`SELECT id, user_id, ciclo_id, titulo, codigo, data, created_at, updated_at FROM programaciones`).all();
+  const progs  = db.prepare(`SELECT id, user_id, ciclo_id, titulo, codigo, data, created_at, updated_at FROM programaciones WHERE deleted_at IS NULL`).all();
   const userCiclos = db.prepare(`SELECT user_id, ciclo_id FROM user_ciclos`).all();
+  db.audit(req, 'backup.exportar', null, null, { programaciones: progs.length });
   res.json({
     version: 3,
     exportDate: new Date().toISOString(),
@@ -83,7 +84,7 @@ router.post('/', requireAdmin, (req, res) => {
     }
   });
 
-  try { run(); res.json({ ok: true, stats }); }
+  try { run(); db.audit(req, 'backup.restaurar', null, null, stats); res.json({ ok: true, stats }); }
   catch (e) { res.status(500).json({ error: 'Error restaurando: ' + e.message }); }
 });
 

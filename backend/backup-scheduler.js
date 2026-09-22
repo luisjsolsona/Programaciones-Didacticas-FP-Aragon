@@ -30,6 +30,8 @@ async function runBackup() {
   } catch (e) {
     console.error('[Backup] Error:', e.message);
   }
+  // Tras la copia: vaciar papelera antigua y auditoría de más de 1 año
+  try { db.maintenance(); } catch (e) { console.error('[Mantenimiento] Error:', e.message); }
 }
 
 function startBackupScheduler() {

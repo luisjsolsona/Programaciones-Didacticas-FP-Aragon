@@ -67,6 +67,7 @@ router.post('/login', (req, res) => {
     blocked(ipKey, MAX_PER_IP), blocked(userKey, MAX_PER_IPUSER), blocked(nameKey, MAX_PER_USER)
   );
   if (wait) {
+    db.audit(req, 'login.bloqueado', null, null, null, { id: null, username: uname });
     return res.status(429).json({
       error: `Demasiados intentos fallidos. Prueba de nuevo en ${Math.ceil(wait / 60000)} min.`
     });
@@ -84,6 +85,7 @@ router.post('/login', (req, res) => {
     // Mismo mensaje para usuario no encontrado y contraseña incorrecta
     // (evitar enumerar usuarios)
     hit(ipKey); hit(userKey); hit(nameKey);
+    db.audit(req, 'login.fallido', null, null, 'usuario inexistente o inactivo', { id: null, username: uname });
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
 
@@ -91,6 +93,7 @@ router.post('/login', (req, res) => {
   const valid = bcrypt.compareSync(password, user.password_hash);
   if (!valid) {
     hit(ipKey); hit(userKey); hit(nameKey);
+    db.audit(req, 'login.fallido', null, null, 'contraseña incorrecta', { id: user.id, username: user.username });
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
 
@@ -98,6 +101,7 @@ router.post('/login', (req, res) => {
   failures.delete(userKey);
   failures.delete(nameKey);
   issueSession(req, res, user);
+  db.audit(req, 'login.ok', null, null, null, { id: user.id, username: user.username });
 
   // Devolver los datos públicos del usuario (sin hash ni datos sensibles)
   res.json({

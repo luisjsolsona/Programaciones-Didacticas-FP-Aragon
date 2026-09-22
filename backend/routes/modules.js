@@ -62,6 +62,7 @@ router.get('/', requireAuth, (req, res) => {
       FROM programaciones p
       JOIN users u ON u.id = p.user_id
       LEFT JOIN ciclo_profiles cp ON cp.id = p.ciclo_id
+      WHERE p.deleted_at IS NULL
       ORDER BY p.updated_at DESC
     `).all();
   } else {
@@ -75,12 +76,32 @@ router.get('/', requireAuth, (req, res) => {
       FROM programaciones p
       JOIN users u ON u.id = p.user_id
       LEFT JOIN ciclo_profiles cp ON cp.id = p.ciclo_id
-      WHERE p.user_id = ?
-         OR p.ciclo_id IN (SELECT ciclo_id FROM user_ciclos WHERE user_id = ?)
+      WHERE p.deleted_at IS NULL
+        AND (p.user_id = ?
+             OR p.ciclo_id IN (SELECT ciclo_id FROM user_ciclos WHERE user_id = ?))
       ORDER BY p.updated_at DESC
     `).all(req.user.id, req.user.id, req.user.id);
   }
 
+  res.json({ modules: rows });
+});
+
+// =============================================================
+// GET /api/modules/trash — Papelera
+// Docente: las suyas. Admin: todas. Se vacía sola a los 30 días.
+// =============================================================
+router.get('/trash', requireAuth, (req, res) => {
+  const isAdmin = req.user.role === 'admin';
+  const rows = db.prepare(`
+    SELECT p.id, p.titulo, p.codigo, p.deleted_at, p.user_id,
+           u.username, u.nombre AS docenteNombre, cp.cod AS cicloCod,
+           CAST(julianday(p.deleted_at, '+30 days') - julianday('now') + 0.99 AS INTEGER) AS dias_restantes
+    FROM programaciones p
+    JOIN users u ON u.id = p.user_id
+    LEFT JOIN ciclo_profiles cp ON cp.id = p.ciclo_id
+    WHERE p.deleted_at IS NOT NULL ${isAdmin ? '' : 'AND p.user_id = ?'}
+    ORDER BY p.deleted_at DESC
+  `).all(...(isAdmin ? [] : [req.user.id]));
   res.json({ modules: rows });
 });
 
@@ -116,6 +137,7 @@ router.post('/', requireAuth, (req, res) => {
     VALUES (?, ?, ?, ?, ?)
   `).run(req.user.id, effectiveCicloId, titulo, codigo || null, JSON.stringify(finalData));
 
+  db.audit(req, 'programacion.crear', 'programacion', result.lastInsertRowid, { titulo });
   res.status(201).json({
     module: { id: result.lastInsertRowid, titulo, codigo, cicloId: effectiveCicloId }
   });
@@ -139,7 +161,7 @@ router.get('/:id', requireAuth, (req, res) => {
     FROM programaciones p
     JOIN users u ON u.id = p.user_id
     LEFT JOIN ciclo_profiles cp ON cp.id = p.ciclo_id
-    WHERE p.id = ?
+    WHERE p.id = ? AND p.deleted_at IS NULL
   `).get(moduleId);
 
   if (!row) return res.status(404).json({ error: 'Programación no encontrada.' });
@@ -197,7 +219,7 @@ router.put('/:id', requireAuth, (req, res) => {
   const data   = req.body.data ? sanitizeDeep(req.body.data) : undefined;
 
   const row = db.prepare(
-    'SELECT * FROM programaciones WHERE id = ?'
+    'SELECT * FROM programaciones WHERE id = ? AND deleted_at IS NULL'
   ).get(moduleId);
 
   if (!row) return res.status(404).json({ error: 'Programación no encontrada.' });
@@ -231,42 +253,136 @@ router.put('/:id', requireAuth, (req, res) => {
   const currentData  = JSON.parse(row.data || '{}');
   const finalData    = { ...currentData, ...(data || {}), ...lockedFields };
 
-  db.prepare(`
-    UPDATE programaciones
-    SET titulo = ?, codigo = ?, data = ?, ciclo_id = ?,
-        version = version + 1, updated_at = datetime('now')
-    WHERE id = ?
-  `).run(
-    titulo ?? row.titulo,
-    codigo ?? row.codigo,
-    JSON.stringify(finalData),
-    newCicloId,
-    moduleId
-  );
+  const newJson = JSON.stringify(finalData);
+  db.transaction(() => {
+    // Historial: guardar el estado anterior (como mucho 1 por hora, o si cambia el autor)
+    if (newJson !== row.data || (titulo ?? row.titulo) !== row.titulo) db.snapshot(row, req.user.id);
+
+    db.prepare(`
+      UPDATE programaciones
+      SET titulo = ?, codigo = ?, data = ?, ciclo_id = ?, last_saved_by = ?,
+          version = version + 1, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      titulo ?? row.titulo,
+      codigo ?? row.codigo,
+      newJson,
+      newCicloId,
+      req.user.id,
+      moduleId
+    );
+  })();
+
+  if (newCicloId !== row.ciclo_id) {
+    db.audit(req, 'programacion.cambiar_ciclo', 'programacion', moduleId,
+             { titulo: row.titulo, de: row.ciclo_id, a: newCicloId });
+  }
 
   const upd = db.prepare('SELECT version, updated_at FROM programaciones WHERE id = ?').get(moduleId);
   res.json({ ok: true, version: upd.version, updated_at: upd.updated_at });
 });
 
+// Helper: comprobar que el usuario puede gestionar (editar/borrar) una programación
+function canManage(req, row) {
+  return row.user_id === req.user.id || req.user.role === 'admin';
+}
+
 // =============================================================
-// DELETE /api/modules/:id — Eliminar programación
-// Solo el propietario o el admin pueden eliminar
+// DELETE /api/modules/:id — Mover a la papelera (borrado lógico)
+// Solo el propietario o el admin. Se elimina del todo a los 30 días.
 // =============================================================
 router.delete('/:id', requireAuth, (req, res) => {
   const moduleId = parseInt(req.params.id);
-
-  const row = db.prepare(
-    'SELECT user_id FROM programaciones WHERE id = ?'
-  ).get(moduleId);
-
+  const row = db.prepare('SELECT id, user_id, titulo FROM programaciones WHERE id = ? AND deleted_at IS NULL').get(moduleId);
   if (!row) return res.status(404).json({ error: 'Programación no encontrada.' });
-
-  if (row.user_id !== req.user.id && req.user.role !== 'admin') {
+  if (!canManage(req, row)) {
     return res.status(403).json({ error: 'No tienes permiso para eliminar esta programación.' });
   }
 
-  db.prepare('DELETE FROM programaciones WHERE id = ?').run(moduleId);
+  db.prepare(`UPDATE programaciones SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ?`)
+    .run(req.user.id, moduleId);
+  db.audit(req, 'programacion.papelera', 'programacion', moduleId, { titulo: row.titulo });
+  res.json({ ok: true });
+});
 
+// =============================================================
+// POST /api/modules/:id/restore — Sacar de la papelera
+// =============================================================
+router.post('/:id/restore', requireAuth, (req, res) => {
+  const moduleId = parseInt(req.params.id);
+  const row = db.prepare('SELECT id, user_id, titulo FROM programaciones WHERE id = ? AND deleted_at IS NOT NULL').get(moduleId);
+  if (!row) return res.status(404).json({ error: 'No está en la papelera.' });
+  if (!canManage(req, row)) return res.status(403).json({ error: 'No tienes permiso.' });
+
+  db.prepare(`UPDATE programaciones SET deleted_at = NULL, deleted_by = NULL, updated_at = datetime('now') WHERE id = ?`).run(moduleId);
+  db.audit(req, 'programacion.recuperar', 'programacion', moduleId, { titulo: row.titulo });
+  res.json({ ok: true });
+});
+
+// =============================================================
+// DELETE /api/modules/:id/purge — Eliminar definitivamente (desde papelera)
+// =============================================================
+router.delete('/:id/purge', requireAuth, (req, res) => {
+  const moduleId = parseInt(req.params.id);
+  const row = db.prepare('SELECT id, user_id, titulo FROM programaciones WHERE id = ? AND deleted_at IS NOT NULL').get(moduleId);
+  if (!row) return res.status(404).json({ error: 'No está en la papelera.' });
+  if (!canManage(req, row)) return res.status(403).json({ error: 'No tienes permiso.' });
+
+  db.prepare('DELETE FROM programaciones WHERE id = ?').run(moduleId);
+  db.audit(req, 'programacion.eliminar_definitiva', 'programacion', moduleId, { titulo: row.titulo });
+  res.json({ ok: true });
+});
+
+// =============================================================
+// GET /api/modules/:id/versions — Historial de versiones
+// Solo propietario o admin
+// =============================================================
+router.get('/:id/versions', requireAuth, (req, res) => {
+  const moduleId = parseInt(req.params.id);
+  const row = db.prepare('SELECT id, user_id FROM programaciones WHERE id = ? AND deleted_at IS NULL').get(moduleId);
+  if (!row) return res.status(404).json({ error: 'Programación no encontrada.' });
+  if (!canManage(req, row)) return res.status(403).json({ error: 'No tienes permiso.' });
+
+  const versions = db.prepare(`
+    SELECT v.id, v.version, v.titulo, v.saved_at, v.reason, LENGTH(v.data) AS size,
+           u.username, u.nombre
+    FROM programacion_versions v
+    LEFT JOIN users u ON u.id = v.saved_by
+    WHERE v.programacion_id = ?
+    ORDER BY v.id DESC
+  `).all(moduleId);
+  res.json({ versions });
+});
+
+// =============================================================
+// POST /api/modules/:id/versions/:vid/restore — Restaurar una versión
+// Antes guarda el estado actual en el historial (se puede deshacer)
+// =============================================================
+router.post('/:id/versions/:vid/restore', requireAuth, (req, res) => {
+  const moduleId = parseInt(req.params.id);
+  const vid      = parseInt(req.params.vid);
+  const row = db.prepare('SELECT * FROM programaciones WHERE id = ? AND deleted_at IS NULL').get(moduleId);
+  if (!row) return res.status(404).json({ error: 'Programación no encontrada.' });
+  if (!canManage(req, row)) return res.status(403).json({ error: 'No tienes permiso.' });
+
+  const v = db.prepare('SELECT * FROM programacion_versions WHERE id = ? AND programacion_id = ?').get(vid, moduleId);
+  if (!v) return res.status(404).json({ error: 'Versión no encontrada.' });
+
+  // Los campos bloqueados del ciclo actual siguen prevaleciendo
+  const data = JSON.stringify({ ...JSON.parse(v.data || '{}'), ...getLockedFields(row.ciclo_id) });
+
+  db.transaction(() => {
+    db.snapshot(row, req.user.id, 'antes-de-restaurar');
+    db.prepare(`
+      UPDATE programaciones
+      SET titulo = ?, codigo = ?, data = ?, last_saved_by = ?,
+          version = version + 1, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(v.titulo ?? row.titulo, v.codigo ?? row.codigo, data, req.user.id, moduleId);
+  })();
+
+  db.audit(req, 'programacion.restaurar_version', 'programacion', moduleId,
+           { titulo: row.titulo, desde: v.saved_at });
   res.json({ ok: true });
 });
 

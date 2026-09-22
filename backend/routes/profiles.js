@@ -75,6 +75,7 @@ router.post('/', requireAdmin, (req, res) => {
     VALUES (?, ?, ?)
   `).run(cod, nombre, JSON.stringify(sanitizeDeep(locked_fields)));
 
+  db.audit(req, 'ciclo.crear', 'ciclo', result.lastInsertRowid, { cod, nombre });
   res.status(201).json({
     profile: { id: result.lastInsertRowid, cod, nombre, locked_fields }
   });
@@ -128,6 +129,10 @@ router.put('/:id', requireAdmin, (req, res) => {
     profileId
   );
 
+  db.audit(req, locked_fields !== undefined ? 'ciclo.bloqueos' : 'ciclo.editar', 'ciclo', profileId, {
+    cod: existing.cod,
+    ...(locked_fields !== undefined ? { campos_bloqueados: locked_fields.map(f => f.key) } : {}),
+  });
   res.json({ ok: true });
 });
 
@@ -139,7 +144,7 @@ router.put('/:id', requireAdmin, (req, res) => {
 router.delete('/:id', requireAdmin, (req, res) => {
   const profileId = parseInt(req.params.id);
 
-  const existing = db.prepare('SELECT id FROM ciclo_profiles WHERE id = ?').get(profileId);
+  const existing = db.prepare('SELECT id, cod FROM ciclo_profiles WHERE id = ?').get(profileId);
   if (!existing) return res.status(404).json({ error: 'Perfil no encontrado.' });
 
   // Contar cuántos usuarios y programaciones se verán afectados
@@ -160,6 +165,7 @@ router.delete('/:id', requireAdmin, (req, res) => {
     ) WHERE ciclo_id IS NULL
   `).run();
 
+  db.audit(req, 'ciclo.eliminar', 'ciclo', profileId, { cod: existing.cod, affectedUsers, affectedProgs });
   res.json({
     ok: true,
     info: `Perfil eliminado. ${affectedUsers} usuarios y ${affectedProgs} programaciones perdieron este ciclo.`

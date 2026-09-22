@@ -100,6 +100,49 @@ if (!db.prepare(`SELECT 1 FROM pragma_table_info('programaciones') WHERE name = 
   db.exec(`ALTER TABLE programaciones ADD COLUMN version INTEGER NOT NULL DEFAULT 0`);
 }
 
+// Quién hizo el último guardado (para el historial)
+if (!db.prepare(`SELECT 1 FROM pragma_table_info('programaciones') WHERE name = 'last_saved_by'`).get()) {
+  db.exec(`ALTER TABLE programaciones ADD COLUMN last_saved_by INTEGER`);
+}
+
+// Papelera: borrado lógico de programaciones
+if (!db.prepare(`SELECT 1 FROM pragma_table_info('programaciones') WHERE name = 'deleted_at'`).get()) {
+  db.exec(`ALTER TABLE programaciones ADD COLUMN deleted_at TEXT`);
+  db.exec(`ALTER TABLE programaciones ADD COLUMN deleted_by INTEGER`);
+}
+
+db.exec(`
+  -- Historial: instantáneas del estado ANTERIOR de cada programación
+  CREATE TABLE IF NOT EXISTS programacion_versions (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    programacion_id  INTEGER NOT NULL REFERENCES programaciones(id) ON DELETE CASCADE,
+    version          INTEGER NOT NULL,
+    titulo           TEXT,
+    codigo           TEXT,
+    ciclo_id         INTEGER,
+    data             TEXT    NOT NULL,
+    saved_by         INTEGER,            -- quién guardó ESE estado
+    saved_at         TEXT    NOT NULL,   -- cuándo se guardó ESE estado
+    reason           TEXT    NOT NULL DEFAULT 'auto', -- auto | antes-de-restaurar
+    created_at       TEXT    NOT NULL DEFAULT (datetime('now'))  -- cuándo se tomó la instantánea
+  );
+  CREATE INDEX IF NOT EXISTS idx_pv_prog ON programacion_versions(programacion_id, id);
+
+  -- Auditoría de acciones relevantes
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    at          TEXT    NOT NULL DEFAULT (datetime('now')),
+    user_id     INTEGER,
+    username    TEXT,
+    action      TEXT    NOT NULL,
+    target_type TEXT,
+    target_id   INTEGER,
+    detail      TEXT,
+    ip          TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
+`);
+
 // Tabla de migraciones puntuales (para ejecutar cada una una sola vez)
 db.exec(`CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)`);
 
@@ -171,6 +214,66 @@ db.parseCicloIds = (body) => {
   if (Array.isArray(body.cicloIds)) return body.cicloIds.map(Number).filter(Boolean);
   if (body.cicloId !== undefined)  return body.cicloId ? [Number(body.cicloId)] : [];
   return undefined; // no se ha enviado
+};
+
+// =============================================================
+// HELPERS: auditoría, historial y mantenimiento
+// =============================================================
+
+// Registra una acción. req puede ser null; user permite indicar
+// usuario explícito (p. ej. login fallido sin req.user)
+db.audit = (req, action, targetType = null, targetId = null, detail = null, user = null) => {
+  try {
+    const uid = user?.id ?? req?.user?.id ?? null;
+    const uname = user?.username
+      ?? (uid ? db.prepare('SELECT username FROM users WHERE id = ?').get(uid)?.username : null);
+    db.prepare(`
+      INSERT INTO audit_log (user_id, username, action, target_type, target_id, detail, ip)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(uid, uname || null, action, targetType, targetId,
+           detail == null ? null : (typeof detail === 'string' ? detail : JSON.stringify(detail)).slice(0, 1000),
+           req?.ip || null);
+  } catch (e) { console.error('[Audit]', e.message); }
+};
+
+const SNAPSHOT_EVERY_MIN = 60;   // como mucho una instantánea automática por hora
+const SNAPSHOT_KEEP      = 40;   // por programación
+
+// Guarda el estado actual (row de programaciones) antes de modificarlo.
+// Automática: solo si la última instantánea tiene más de 1 h o era de otro usuario.
+db.snapshot = (row, userId, reason = 'auto') => {
+  if (reason === 'auto') {
+    const last = db.prepare(`
+      SELECT created_at FROM programacion_versions
+      WHERE programacion_id = ? ORDER BY id DESC LIMIT 1
+    `).get(row.id);
+    const lastUserSaved = row.last_saved_by ?? null;
+    if (last) {
+      const ageMin = (Date.now() - Date.parse(last.created_at.replace(' ', 'T') + 'Z')) / 60000;
+      if (ageMin < SNAPSHOT_EVERY_MIN && (lastUserSaved == null || lastUserSaved === userId)) return false;
+    }
+  }
+  db.prepare(`
+    INSERT INTO programacion_versions (programacion_id, version, titulo, codigo, ciclo_id, data, saved_by, saved_at, reason)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(row.id, row.version || 0, row.titulo, row.codigo, row.ciclo_id, row.data,
+         row.last_saved_by ?? row.user_id, row.updated_at, reason);
+  db.prepare(`
+    DELETE FROM programacion_versions WHERE programacion_id = ? AND id NOT IN (
+      SELECT id FROM programacion_versions WHERE programacion_id = ? ORDER BY id DESC LIMIT ?
+    )
+  `).run(row.id, row.id, SNAPSHOT_KEEP);
+  return true;
+};
+
+// Limpieza diaria: papelera > 30 días y auditoría > 1 año
+db.maintenance = () => {
+  const purged = db.prepare(`
+    DELETE FROM programaciones WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now', '-30 days')
+  `).run().changes;
+  const oldAudit = db.prepare(`DELETE FROM audit_log WHERE at < datetime('now', '-365 days')`).run().changes;
+  if (purged || oldAudit) console.log(`[Mantenimiento] Papelera vaciada: ${purged} · auditoría antigua: ${oldAudit}`);
+  return { purged, oldAudit };
 };
 
 module.exports = db;

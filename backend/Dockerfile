@@ -1,27 +1,29 @@
 # =============================================================
 # backend/Dockerfile
 #
-# Imagen Node.js Alpine (ligera) para el servidor Express.
-# Instala dependencias, copia el código y arranca el servidor.
+# Node.js Alpine. Dependencias fijadas con package-lock.json (npm ci)
+# y el proceso corre como usuario sin privilegios "node".
+# El entrypoint ajusta el propietario de /app/data (volumen del host)
+# y después baja privilegios con su-exec.
 # =============================================================
 
 FROM node:20-alpine
 
-# Directorio de trabajo dentro del contenedor
+# su-exec: cambiar de root a "node" en el arranque
+RUN apk add --no-cache su-exec
+
 WORKDIR /app
 
-# Copiar solo package.json primero para aprovechar la caché de
-# capas de Docker (las dependencias no se reinstalan si no cambia)
-COPY package*.json ./
+# Dependencias primero (caché de capas); versiones exactas del lockfile
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Instalar dependencias de producción únicamente
-RUN npm install --omit=dev
-
-# Copiar el resto del código fuente
+# Código fuente
 COPY . .
+RUN chmod +x docker-entrypoint.sh && chown -R node:node /app
 
-# Puerto que expone el contenedor (debe coincidir con PORT en .env)
+ENV NODE_ENV=production
 EXPOSE 3001
 
-# Comando de arranque
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

@@ -56,6 +56,15 @@ const Modules = {
   get:    (id)      => apiFetch(`/modules/${id}`),
   update: (id,body) => apiFetch(`/modules/${id}`, { method: 'PUT',    body }),
   delete: (id)      => apiFetch(`/modules/${id}`, { method: 'DELETE' }),
+  trash:          ()        => apiFetch('/modules/trash'),
+  restore:        (id)      => apiFetch(`/modules/${id}/restore`, { method: 'POST' }),
+  purge:          (id)      => apiFetch(`/modules/${id}/purge`,   { method: 'DELETE' }),
+  versions:       (id)      => apiFetch(`/modules/${id}/versions`),
+  restoreVersion: (id, vid) => apiFetch(`/modules/${id}/versions/${vid}/restore`, { method: 'POST' }),
+};
+
+const Audit = {
+  list: (params = {}) => apiFetch('/audit?' + new URLSearchParams(params)),
 };
 </script>
 <style>
@@ -474,6 +483,27 @@ const Modules = {
   .modal-close:hover { color: white; }
   .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
   .modal-foot { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* ===== LISTAS EN MODAL (historial, papelera) ===== */
+  .list-rows { display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow-y: auto; }
+  .list-row {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    border: 1.5px solid var(--border); border-radius: 8px; background: var(--white);
+  }
+  .list-row .lr-main { flex: 1; min-width: 0; }
+  .list-row .lr-title { font-size: 14px; font-weight: 600; color: var(--navy); }
+  .list-row .lr-sub   { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .list-row .lr-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .list-empty { font-size: 13px; color: var(--text-muted); text-align: center; padding: 24px 8px; }
+  .tag-mini { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+              background: var(--locked-bg); color: var(--navy); margin-left: 6px; vertical-align: middle; }
+  .audit-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .audit-table th { text-align: left; padding: 6px 8px; background: var(--cream); border-bottom: 1.5px solid var(--border);
+                    position: sticky; top: 0; }
+  .audit-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .audit-table td.detail { color: var(--text-muted); word-break: break-word; max-width: 360px; }
+  .audit-action { font-family: monospace; font-size: 11px; font-weight: 700; }
+  .audit-action.fail { color: var(--danger); }
 
   /* ===== ADMIN PANEL ===== */
   .admin-panel-overlay {
@@ -900,8 +930,11 @@ const Modules = {
       </div>
     </div>
     <div class="modules-list" id="modulesList"></div>
+    <div style="padding:6px 12px">
+      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="openTrash()">🗑 Papelera</button>
+    </div>
     <div class="sidebar-footer" style="font-size:11px;color:var(--text-muted);text-align:center">
-      Datos guardados en este navegador
+      Datos guardados en el servidor · copia diaria
     </div>
   </aside>
   <!-- Input oculto para importar archivo -->
@@ -1012,6 +1045,17 @@ const Modules = {
 </div>
 
 <!-- MODAL: nuevo módulo -->
+<!-- MODAL genérico de listas (historial / papelera) -->
+<div class="modal-overlay hidden" id="listModal" onclick="if(event.target===this)closeListModal()">
+  <div class="modal" style="width:640px;max-width:96vw">
+    <div class="modal-head">
+      <h2 id="listModalTitle"></h2>
+      <button class="modal-close" onclick="closeListModal()">✕</button>
+    </div>
+    <div class="modal-body" id="listModalBody"></div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="newModuleModal">
   <div class="modal" style="width:500px;max-width:96vw">
     <div class="modal-head">
@@ -1111,6 +1155,7 @@ const Modules = {
       <button class="admin-tab active" onclick="adminSwitchTab('users')"    data-tab="users">👨‍🏫 Docentes y seguridad</button>
       <button class="admin-tab"        onclick="adminSwitchTab('profiles')" data-tab="profiles">🔄 Perfiles de ciclo</button>
       <button class="admin-tab"        onclick="adminSwitchTab('locks')"    data-tab="locks">🔒 Campos bloqueados</button>
+      <button class="admin-tab"        onclick="adminSwitchTab('audit')"    data-tab="audit">📜 Auditoría</button>
     </div>
 
     <!-- Contenido de pestañas -->
@@ -1209,6 +1254,30 @@ const Modules = {
       </div>
 
       <!-- ── PESTAÑA 3: Campos bloqueados ── -->
+      <div class="admin-tab-panel" id="adminTab-audit">
+        <div class="admin-section">
+          <div class="admin-section-head">📜 Registro de actividad</div>
+          <div class="admin-section-body">
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <input type="text" id="auditSearch" placeholder="Filtrar por usuario, acción o detalle…"
+                style="flex:1;border:1.5px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px"
+                onkeydown="if(event.key==='Enter')adminLoadAudit()">
+              <button class="btn btn-primary btn-sm" onclick="adminLoadAudit()">Buscar</button>
+            </div>
+            <div style="max-height:60vh;overflow:auto;border:1px solid var(--border);border-radius:6px">
+              <table class="audit-table">
+                <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th>IP</th></tr></thead>
+                <tbody id="auditBody"></tbody>
+              </table>
+            </div>
+            <div style="text-align:center;margin-top:8px">
+              <button class="btn btn-ghost btn-sm" id="auditMore" style="display:none" onclick="adminLoadAudit(true)">Cargar más</button>
+            </div>
+            <p style="font-size:11px;color:var(--text-muted);margin-top:6px">Se conserva 1 año.</p>
+          </div>
+        </div>
+      </div>
+
       <div class="admin-tab-panel" id="adminTab-locks">
         <div class="admin-section">
           <div class="admin-section-head">🎯 Ciclo al que aplican los bloqueos</div>
@@ -1808,14 +1877,14 @@ async function selectModule(id) {
 
 async function deleteModule(e, id) {
   e.stopPropagation();
-  if (!confirm('¿Eliminar este módulo? Esta acción no se puede deshacer.')) return;
+  if (!confirm('¿Mover esta programación a la papelera?\n\nPodrás recuperarla durante 30 días desde "🗑 Papelera".')) return;
   try {
     await Modules.delete(id);
     delete state.modules[id];
     if (state.activeId == id) state.activeId = null;
     renderModulesList();
     renderMainContent();
-    showStatus('🗑 Módulo eliminado');
+    showStatus('🗑 Movida a la papelera');
   } catch(err) { showStatus('Error al eliminar: ' + err.message, 'error'); }
 }
 
@@ -2002,6 +2071,7 @@ function renderMainContent() {
     <div class="toolbar-actions">
       ${isReadOnly ? '' : `<button class="btn btn-outline btn-sm" style="background:var(--navy);color:white" onclick="openPreview()">👁 Previsualizar</button>`}
       ${isReadOnly ? `<button class="btn btn-outline btn-sm" style="background:var(--navy);color:white" onclick="openPreview()">👁 Previsualizar</button>` : ''}
+      ${isReadOnly ? '' : `<button class="btn btn-ghost btn-sm" onclick="openHistory()" title="Versiones anteriores">🕘 Historial</button>`}
       <button class="btn btn-success btn-sm" onclick="exportWord()">📄 Exportar Word</button>
       <button class="btn btn-primary btn-sm" onclick="exportPDF()">📥 Exportar PDF</button>
     </div>
@@ -3069,6 +3139,7 @@ function adminSwitchTab(tab) {
   document.querySelectorAll('.admin-tab-panel').forEach(panel => {
     panel.classList.toggle('active', panel.id === `adminTab-${tab}`);
   });
+  if (tab === 'audit') adminLoadAudit();
 }
 
 // ── Helpers del panel admin ────────────────────────────────
@@ -4249,6 +4320,148 @@ async function initApp(user) {
   await loadState();
   renderModulesList();
   renderMainContent();
+}
+
+// ===================================================
+//  MODAL DE LISTAS · HISTORIAL · PAPELERA · AUDITORÍA
+// ===================================================
+function openListModal(title, bodyHtml) {
+  document.getElementById('listModalTitle').textContent = title;
+  document.getElementById('listModalBody').innerHTML = bodyHtml;
+  document.getElementById('listModal').classList.remove('hidden');
+}
+function closeListModal() { document.getElementById('listModal').classList.add('hidden'); }
+
+// "2026-09-22 18:52:14" (UTC en SQLite) → fecha y hora locales
+function fmtDate(s) {
+  if (!s) return '';
+  const d = new Date(s.replace(' ', 'T') + 'Z');
+  return d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+const VERSION_REASON = { 'auto': '', 'antes-de-restaurar': 'antes de restaurar' };
+
+async function openHistory() {
+  const id = state.activeId;
+  if (!id) return;
+  openListModal('🕘 Historial de versiones', '<div class="list-empty">Cargando…</div>');
+  try {
+    const { versions } = await Modules.versions(id);
+    const intro = `<p style="font-size:12px;color:var(--text-muted);margin:0">
+      Se guarda una copia como mucho cada hora mientras editas y siempre que cambia la persona que edita.
+      Restaurar no borra nada: el estado actual pasa también al historial.</p>`;
+    const rows = versions.length ? versions.map(v => `
+      <div class="list-row">
+        <div class="lr-main">
+          <div class="lr-title">${fmtDate(v.saved_at)}${VERSION_REASON[v.reason] ? `<span class="tag-mini">${VERSION_REASON[v.reason]}</span>` : ''}</div>
+          <div class="lr-sub">${escHtml(v.nombre || v.username || '—')} · ${escHtml(v.titulo || '')} · ${Math.round((v.size || 0) / 1024)} KB</div>
+        </div>
+        <div class="lr-actions">
+          <button class="btn btn-primary btn-sm" onclick="restoreVersion(${id}, ${v.id}, '${fmtDate(v.saved_at)}')">↩ Restaurar</button>
+        </div>
+      </div>`).join('')
+      : '<div class="list-empty">Todavía no hay versiones anteriores.<br>Aparecerán a medida que edites la programación.</div>';
+    document.getElementById('listModalBody').innerHTML = intro + `<div class="list-rows">${rows}</div>`;
+  } catch (e) {
+    document.getElementById('listModalBody').innerHTML = `<div class="list-empty">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function restoreVersion(id, vid, when) {
+  if (!confirm(`¿Restaurar la versión del ${when}?\n\nEl contenido actual se guardará en el historial, así que podrás volver a él.`)) return;
+  try {
+    clearTimeout(_saveDebounceTimer);
+    await Modules.restoreVersion(id, vid);
+    await loadModuleData(id);
+    if (state.activeId === id) { applyModuleLocks(state.modules[id]); renderMainContent(); }
+    closeListModal();
+    showStatus('↩ Versión restaurada');
+  } catch (e) { showStatus('Error al restaurar: ' + e.message, 'error'); }
+}
+
+async function openTrash() {
+  openListModal('🗑 Papelera', '<div class="list-empty">Cargando…</div>');
+  try {
+    const { modules } = await Modules.trash();
+    const isAdmin = currentUser?.role === 'admin';
+    const intro = `<p style="font-size:12px;color:var(--text-muted);margin:0">
+      Las programaciones eliminadas se conservan 30 días y después se borran automáticamente.</p>`;
+    const rows = modules.length ? modules.map(m => `
+      <div class="list-row">
+        <div class="lr-main">
+          <div class="lr-title">${escHtml(m.titulo)}${m.cicloCod ? `<span class="tag-mini">${escHtml(m.cicloCod)}</span>` : ''}</div>
+          <div class="lr-sub">Eliminada el ${fmtDate(m.deleted_at)} · se borrará en ${Math.max(0, m.dias_restantes)} días${isAdmin ? ' · ' + escHtml(m.docenteNombre || m.username) : ''}</div>
+        </div>
+        <div class="lr-actions">
+          <button class="btn btn-primary btn-sm" onclick="restoreFromTrash(${m.id})">↩ Recuperar</button>
+          <button class="btn btn-danger btn-sm" onclick="purgeFromTrash(${m.id})" title="Eliminar definitivamente">✕</button>
+        </div>
+      </div>`).join('')
+      : '<div class="list-empty">La papelera está vacía.</div>';
+    document.getElementById('listModalBody').innerHTML = intro + `<div class="list-rows">${rows}</div>`;
+  } catch (e) {
+    document.getElementById('listModalBody').innerHTML = `<div class="list-empty">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function restoreFromTrash(id) {
+  try {
+    await Modules.restore(id);
+    await loadState();
+    renderModulesList();
+    showStatus('↩ Programación recuperada');
+    openTrash();
+  } catch (e) { showStatus('Error: ' + e.message, 'error'); }
+}
+
+async function purgeFromTrash(id) {
+  if (!confirm('¿Eliminar DEFINITIVAMENTE esta programación?\n\nNo se podrá recuperar (salvo desde las copias de seguridad del servidor).')) return;
+  try {
+    await Modules.purge(id);
+    showStatus('Programación eliminada definitivamente');
+    openTrash();
+  } catch (e) { showStatus('Error: ' + e.message, 'error'); }
+}
+
+// ── Auditoría (admin) ──
+const AUDIT_LABELS = {
+  'login.ok': 'Inicio de sesión', 'login.fallido': 'Login fallido', 'login.bloqueado': 'Login bloqueado',
+  'usuario.crear': 'Alta docente', 'usuario.editar': 'Edición docente', 'usuario.eliminar': 'Baja docente',
+  'usuario.cambiar_password': 'Cambio contraseña',
+  'ciclo.crear': 'Alta ciclo', 'ciclo.editar': 'Edición ciclo', 'ciclo.bloqueos': 'Campos bloqueados', 'ciclo.eliminar': 'Baja ciclo',
+  'programacion.crear': 'Nueva programación', 'programacion.papelera': 'A la papelera',
+  'programacion.recuperar': 'Recuperada', 'programacion.eliminar_definitiva': 'Eliminada definitiva',
+  'programacion.restaurar_version': 'Versión restaurada', 'programacion.cambiar_ciclo': 'Cambio de ciclo',
+  'backup.exportar': 'Copia exportada', 'backup.restaurar': 'Copia restaurada',
+};
+let _auditLastId = null;
+
+async function adminLoadAudit(more = false) {
+  const body = document.getElementById('auditBody');
+  const q = document.getElementById('auditSearch')?.value.trim() || '';
+  if (!more) { body.innerHTML = '<tr><td colspan="5" class="list-empty">Cargando…</td></tr>'; _auditLastId = null; }
+  try {
+    const params = { limit: 100, ...(q ? { q } : {}), ...(more && _auditLastId ? { before: _auditLastId } : {}) };
+    const { entries, hasMore } = await Audit.list(params);
+    const html = entries.map(e => {
+      let detail = e.detail || '';
+      try { const o = JSON.parse(detail); detail = Object.entries(o).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' · '); } catch (_) {}
+      const fail = /fallido|bloqueado|eliminar/.test(e.action);
+      return `<tr>
+        <td style="white-space:nowrap">${fmtDate(e.at)}</td>
+        <td>${escHtml(e.username || '—')}</td>
+        <td><span class="audit-action ${fail ? 'fail' : ''}" title="${escHtml(e.action)}">${escHtml(AUDIT_LABELS[e.action] || e.action)}</span></td>
+        <td class="detail">${escHtml(detail)}</td>
+        <td style="white-space:nowrap;color:var(--text-muted)">${escHtml(e.ip || '')}</td>
+      </tr>`;
+    }).join('');
+    if (more) body.insertAdjacentHTML('beforeend', html);
+    else body.innerHTML = html || '<tr><td colspan="5" class="list-empty">Sin registros.</td></tr>';
+    if (entries.length) _auditLastId = entries[entries.length - 1].id;
+    document.getElementById('auditMore').style.display = hasMore ? '' : 'none';
+  } catch (e) {
+    body.innerHTML = `<tr><td colspan="5" class="list-empty">Error: ${escHtml(e.message)}</td></tr>`;
+  }
 }
 
 // ===================================================

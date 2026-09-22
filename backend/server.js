@@ -32,6 +32,7 @@ const modulesRoutes  = require('./routes/modules');
 const backupRoutes   = require('./routes/backup');
 const cateduRoutes   = require('./routes/catedu');
 const exportRoutes   = require('./routes/export');
+const auditRoutes    = require('./routes/audit');
 
 const app  = express();
 
@@ -91,6 +92,9 @@ app.use('/api/catedu', cateduRoutes);
 
 // POST /api/export/docx — Genera el .docx de una programación
 app.use('/api/export', exportRoutes);
+
+// GET /api/audit — Registro de auditoría (solo admin)
+app.use('/api/audit', auditRoutes);
 
 // =============================================================
 // HEALTH CHECK

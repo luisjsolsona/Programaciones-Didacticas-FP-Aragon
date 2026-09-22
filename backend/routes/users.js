@@ -80,6 +80,7 @@ router.post('/', requireAdmin, (req, res) => {
 
   db.setUserCiclos(result.lastInsertRowid, cicloIds);
 
+  db.audit(req, 'usuario.crear', 'usuario', result.lastInsertRowid, { username, cicloIds });
   res.status(201).json({
     user: { id: result.lastInsertRowid, username, nombre, cicloIds }
   });
@@ -144,6 +145,12 @@ router.put('/:id', requireAdmin, (req, res) => {
 
   if (cicloIds) db.setUserCiclos(targetId, cicloIds);
 
+  db.audit(req, 'usuario.editar', 'usuario', targetId, {
+    username: target.username,
+    ...(nombre !== undefined ? { nombre: newNombre } : {}),
+    ...(activo !== undefined ? { activo: !!newActivo } : {}),
+    ...(cicloIds ? { cicloIds } : {}),
+  });
   res.json({ ok: true });
 });
 
@@ -154,7 +161,7 @@ router.put('/:id', requireAdmin, (req, res) => {
 router.delete('/:id', requireAdmin, (req, res) => {
   const targetId = parseInt(req.params.id);
 
-  const target = db.prepare('SELECT role FROM users WHERE id = ?').get(targetId);
+  const target = db.prepare('SELECT role, username FROM users WHERE id = ?').get(targetId);
   if (!target) return res.status(404).json({ error: 'Usuario no encontrado.' });
   if (target.role === 'admin') {
     return res.status(403).json({ error: 'No se puede eliminar la cuenta admin.' });
@@ -163,6 +170,7 @@ router.delete('/:id', requireAdmin, (req, res) => {
   // Al eliminar el usuario, sus programaciones se eliminan en cascada (FK CASCADE)
   db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
 
+  db.audit(req, 'usuario.eliminar', 'usuario', targetId, { username: target.username });
   res.json({ ok: true });
 });
 
@@ -204,6 +212,7 @@ router.put('/:id/password', requireAuth, (req, res) => {
     issueSession(req, res, db.prepare('SELECT id, role, token_version FROM users WHERE id = ?').get(targetId));
   }
 
+  db.audit(req, 'usuario.cambiar_password', 'usuario', targetId, { username: target.username, propia: targetId === req.user.id });
   res.json({ ok: true });
 });
 
