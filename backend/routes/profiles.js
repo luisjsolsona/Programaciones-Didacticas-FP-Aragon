@@ -143,7 +143,7 @@ router.delete('/:id', requireAdmin, (req, res) => {
 
   // Contar cuántos usuarios y programaciones se verán afectados
   const affectedUsers = db.prepare(
-    'SELECT COUNT(*) as n FROM users WHERE ciclo_id = ?'
+    'SELECT COUNT(*) as n FROM user_ciclos WHERE ciclo_id = ?'
   ).get(profileId).n;
 
   const affectedProgs = db.prepare(
@@ -152,9 +152,16 @@ router.delete('/:id', requireAdmin, (req, res) => {
 
   db.prepare('DELETE FROM ciclo_profiles WHERE id = ?').run(profileId);
 
+  // Recalcular el ciclo principal de los usuarios que lo tenían como principal
+  db.prepare(`
+    UPDATE users SET ciclo_id = (
+      SELECT MIN(ciclo_id) FROM user_ciclos WHERE user_id = users.id
+    ) WHERE ciclo_id IS NULL
+  `).run();
+
   res.json({
     ok: true,
-    info: `Perfil eliminado. ${affectedUsers} usuarios y ${affectedProgs} programaciones quedaron sin ciclo asignado.`
+    info: `Perfil eliminado. ${affectedUsers} usuarios y ${affectedProgs} programaciones perdieron este ciclo.`
   });
 });
 

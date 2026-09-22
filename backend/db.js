@@ -27,6 +27,11 @@ db.pragma('foreign_keys = ON');
 // CREACIÓN DE TABLAS
 // =============================================================
 
+// ¿Existía ya la tabla user_ciclos? (para migrar solo la primera vez)
+const hadUserCiclos = !!db.prepare(
+  `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'user_ciclos'`
+).get();
+
 db.exec(`
 
   -- Perfiles de ciclo formativo
@@ -72,7 +77,25 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_prog_user    ON programaciones(user_id);
   CREATE INDEX IF NOT EXISTS idx_prog_ciclo   ON programaciones(ciclo_id);
   CREATE INDEX IF NOT EXISTS idx_users_ciclo  ON users(ciclo_id);
+
+  -- Relación N:M docente ↔ ciclo (un docente puede estar en varios ciclos)
+  -- users.ciclo_id se mantiene como "ciclo principal" (el primero) por compatibilidad
+  CREATE TABLE IF NOT EXISTS user_ciclos (
+    user_id  INTEGER NOT NULL REFERENCES users(id)          ON DELETE CASCADE,
+    ciclo_id INTEGER NOT NULL REFERENCES ciclo_profiles(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, ciclo_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_uc_ciclo ON user_ciclos(ciclo_id);
 `);
+
+// Migración única: copiar el ciclo actual de cada usuario a user_ciclos
+if (!hadUserCiclos) {
+  const n = db.prepare(`
+    INSERT OR IGNORE INTO user_ciclos (user_id, ciclo_id)
+    SELECT id, ciclo_id FROM users WHERE ciclo_id IS NOT NULL
+  `).run().changes;
+  console.log(`[DB] Migración user_ciclos: ${n} asignaciones copiadas.`);
+}
 
 // =============================================================
 // USUARIO ADMIN POR DEFECTO
@@ -96,5 +119,39 @@ if (!adminExists) {
   console.log('[DB] Usuario admin creado. La contraseña es la que hayas puesto en ADMIN_PASSWORD (no se muestra aquí por seguridad).');
   console.log('[DB] ⚠️  Cambia la contraseña tras el primer login.');
 }
+
+// =============================================================
+// HELPERS: ciclos de un usuario
+// =============================================================
+
+// Devuelve [{ id, cod, nombre }] ordenados por código
+db.getUserCiclos = (userId) => db.prepare(`
+  SELECT cp.id, cp.cod, cp.nombre
+  FROM user_ciclos uc JOIN ciclo_profiles cp ON cp.id = uc.ciclo_id
+  WHERE uc.user_id = ?
+  ORDER BY cp.cod
+`).all(userId);
+
+// Sustituye los ciclos del usuario y sincroniza users.ciclo_id (principal)
+db.setUserCiclos = db.transaction((userId, cicloIds) => {
+  const ids = [...new Set((cicloIds || []).map(Number).filter(Boolean))];
+  db.prepare('DELETE FROM user_ciclos WHERE user_id = ?').run(userId);
+  const ins = db.prepare('INSERT INTO user_ciclos (user_id, ciclo_id) VALUES (?, ?)');
+  ids.forEach(cid => ins.run(userId, cid));
+  db.prepare('UPDATE users SET ciclo_id = ? WHERE id = ?').run(ids[0] || null, userId);
+});
+
+// Valida que todos los ids existen; devuelve el primero que no existe o null
+db.findMissingCiclo = (cicloIds) => {
+  const q = db.prepare('SELECT id FROM ciclo_profiles WHERE id = ?');
+  return (cicloIds || []).find(id => !q.get(Number(id))) ?? null;
+};
+
+// Normaliza el body: acepta cicloIds (array) o cicloId (legacy)
+db.parseCicloIds = (body) => {
+  if (Array.isArray(body.cicloIds)) return body.cicloIds.map(Number).filter(Boolean);
+  if (body.cicloId !== undefined)  return body.cicloId ? [Number(body.cicloId)] : [];
+  return undefined; // no se ha enviado
+};
 
 module.exports = db;

@@ -83,6 +83,7 @@ router.post('/login', (req, res) => {
       cicloId:     user.ciclo_id,
       cicloCod:    user.cicloCod,
       cicloNombre: user.cicloNombre,
+      ciclos:      db.getUserCiclos(user.id),
     }
   });
 });
@@ -116,7 +117,7 @@ router.get('/me', requireAuth, (req, res) => {
     return res.status(401).json({ error: 'Usuario no encontrado o desactivado.' });
   }
 
-  res.json({ user });
+  res.json({ user: { ...user, cicloId: user.ciclo_id, ciclos: db.getUserCiclos(user.id) } });
 });
 
 module.exports = router;

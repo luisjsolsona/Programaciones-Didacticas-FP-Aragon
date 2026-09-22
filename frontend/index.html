@@ -1019,6 +1019,10 @@ const Modules = {
         <label class="field-label">Ciclo formativo</label>
         <input type="text" id="newModuleCycle" placeholder="Ej: Sistemas Microinformáticos y Redes (IFC201)">
       </div>
+      <div class="field" id="newModuleCicloIdWrap" style="display:none">
+        <label class="field-label">Perfil de ciclo (permisos y campos bloqueados)</label>
+        <select id="newModuleCicloId"></select>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeNewModuleModal()">Cancelar</button>
@@ -1110,11 +1114,8 @@ const Modules = {
                     style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
                 </div>
                 <div class="field">
-                  <label class="field-label">Ciclo asignado</label>
-                  <select id="newUserCiclo"
-                    style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
-                    <option value="">— Sin ciclo —</option>
-                  </select>
+                  <label class="field-label">Ciclos asignados</label>
+                  <div id="newUserCiclos" style="display:flex;flex-direction:column;gap:4px;font-size:13px"></div>
                 </div>
               </div>
               <div style="display:flex;gap:8px">
@@ -1351,7 +1352,40 @@ let adminLoggedIn = false;    // true cuando el usuario es admin
 let collapsedSections = {};
 
 // Usuario autenticado actual (viene del servidor)
-let currentUser = null;       // { id, username, nombre, role, cicloId, cicloCod, cicloNombre }
+let currentUser = null;       // { id, username, nombre, role, cicloId, ciclos:[{id,cod,nombre}] }
+let _allProfiles = [];        // admin: todos los perfiles de ciclo (para selectores)
+
+// Ciclos que el usuario puede asignar a una programación
+function cicloOptionsForUser() {
+  return currentUser?.role === 'admin' ? _allProfiles : (currentUser?.ciclos || []);
+}
+
+// Aplica los bloqueos del ciclo de la programación activa (reinicia los anteriores)
+function applyModuleLocks(mod) {
+  adminConfig.lockedFields = {};
+  adminConfig.lockedValues = {};
+  (mod?.lockedKeys || []).forEach(k => {
+    adminConfig.lockedFields[k] = true;
+    if (mod.data?.[k] !== undefined) adminConfig.lockedValues[k] = mod.data[k];
+  });
+}
+
+// Cambia el ciclo de la programación activa
+async function changeModuleCiclo(cicloId) {
+  const id = state.activeId;
+  if (!id) return;
+  try {
+    await Modules.update(id, { cicloId: cicloId ? parseInt(cicloId) : null });
+    await loadModuleData(id);
+    applyModuleLocks(state.modules[id]);
+    const loaded = state.modules[id];
+    await loadState();
+    state.modules[id] = loaded;
+    renderModulesList();
+    renderMainContent();
+    showStatus('✔ Ciclo de la programación actualizado');
+  } catch (e) { showStatus('Error al cambiar ciclo: ' + e.message, 'error'); }
+}
 
 // ===================================================
 //  CAPA DE PERSISTENCIA — API REST
@@ -1418,6 +1452,7 @@ async function loadState() {
         meta: {
           name:          m.titulo,
           code:          m.codigo,
+          cicloId:       m.ciclo_id || null,
           course:        '',
           cycle:         m.cicloNombre || '',
           cicloNombre:   m.cicloNombre || '',
@@ -1444,6 +1479,7 @@ async function loadModuleData(id) {
       meta: {
         name:          module.titulo,
         code:          module.codigo,
+        cicloId:       module.cicloId || null,
         course:        module.data?.curso || '',
         cycle:         module.cicloNombre || module.data?.ciclo || '',
         cicloNombre:   module.cicloNombre || '',
@@ -1451,13 +1487,6 @@ async function loadModuleData(id) {
       },
       data: module.data || {},
     };
-    // Sincronizar adminConfig con los campos bloqueados del perfil del ciclo
-    if (module.lockedKeys?.length) {
-      module.lockedKeys.forEach(k => {
-        adminConfig.lockedFields[k] = true;
-        if (module.data[k] !== undefined) adminConfig.lockedValues[k] = module.data[k];
-      });
-    }
     return state.modules[id];
   } catch(e) {
     console.error('loadModuleData error:', e);
@@ -1690,6 +1719,7 @@ async function selectModule(id) {
     await loadModuleData(id);
     hideLoading();
   }
+  applyModuleLocks(state.modules[id]);
   renderMainContent();
 }
 
@@ -1771,6 +1801,11 @@ async function handleImportFile(e) {
 //  MODAL NUEVO MÓDULO
 // ===================================================
 function openNewModuleModal() {
+  const opts = cicloOptionsForUser();
+  const sel  = document.getElementById('newModuleCicloId');
+  sel.innerHTML = (currentUser?.role === 'admin' ? '<option value="">— Sin ciclo —</option>' : '') +
+    opts.map(c => `<option value="${c.id}">${escHtml(c.cod)} — ${escHtml(c.nombre)}</option>`).join('');
+  document.getElementById('newModuleCicloIdWrap').style.display = opts.length > 1 ? '' : 'none';
   document.getElementById('newModuleModal').classList.remove('hidden');
   document.getElementById('newModuleName').focus();
 }
@@ -1807,7 +1842,9 @@ async function createModule() {
   }
 
   try {
-    const { module } = await Modules.create({ titulo: name, codigo: code, data });
+    const cicloSel = document.getElementById('newModuleCicloId').value;
+    const { module } = await Modules.create({ titulo: name, codigo: code, data,
+      ...(cicloSel ? { cicloId: parseInt(cicloSel) } : {}) });
     closeNewModuleModal();
     ['newModuleName','newModuleCode','newModuleHoras','newModuleHorasSem','newModuleCourse','newModuleCycle']
       .forEach(fid => document.getElementById(fid).value = '');
@@ -1829,9 +1866,12 @@ async function createModule() {
       data,
     };
 
-    // Recargar lista del sidebar, luego restaurar el módulo completo
+    // Recargar lista del sidebar y cargar el módulo desde el servidor
+    // (así llegan los campos bloqueados de su ciclo)
     await loadState();
     state.modules[module.id] = fullModule;
+    await loadModuleData(module.id);
+    applyModuleLocks(state.modules[module.id]);
     state.activeId = module.id;
 
     renderModulesList();
@@ -1868,6 +1908,11 @@ function renderMainContent() {
     <div class="module-toolbar-left">
       <h1>${mod.meta.name || 'Sin título'}</h1>
       <div class="module-meta">Código: ${mod.meta.code || '—'} · Curso ${mod.meta.course || '—'} · ${mod.meta.cycle || ''}</div>
+      ${(!isReadOnly && cicloOptionsForUser().length > 1) ? `<div class="module-meta" style="margin-top:4px">Perfil de ciclo:
+        <select onchange="changeModuleCiclo(this.value)" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:5px">
+          ${currentUser?.role === 'admin' ? '<option value="">— Sin ciclo —</option>' : ''}
+          ${cicloOptionsForUser().map(c => `<option value="${c.id}" ${c.id === mod.meta.cicloId ? 'selected' : ''}>${escHtml(c.cod)} — ${escHtml(c.nombre)}</option>`).join('')}
+        </select></div>` : ''}
     </div>
     <div class="toolbar-actions">
       ${isReadOnly ? '' : `<button class="btn btn-outline btn-sm" style="background:var(--navy);color:white" onclick="openPreview()">👁 Previsualizar</button>`}
@@ -2942,10 +2987,13 @@ async function adminLoadUsersAndProfiles() {
     }
 
     // Rellenar selector de ciclo en formulario de nuevo usuario
-    const newUserCicloSel = document.getElementById('newUserCiclo');
-    if (newUserCicloSel) {
-      newUserCicloSel.innerHTML = '<option value="">— Sin ciclo —</option>' +
-        profiles.map(p => `<option value="${p.id}">${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('');
+    _allProfiles = profiles;
+    const newUserCiclos = document.getElementById('newUserCiclos');
+    if (newUserCiclos) {
+      newUserCiclos.innerHTML = profiles.length
+        ? profiles.map(p => `<label style="display:flex;gap:6px;align-items:center;cursor:pointer">
+            <input type="checkbox" class="newUserCicloChk" value="${p.id}"> ${escHtml(p.cod)} — ${escHtml(p.nombre)}</label>`).join('')
+        : '<span style="color:var(--text-muted);font-size:12px">No hay ciclos creados.</span>';
     }
 
     // Render lista de usuarios
@@ -2960,7 +3008,7 @@ async function adminLoadUsersAndProfiles() {
               <div>
                 <span style="font-size:13px;font-weight:500">${escHtml(u.nombre || u.username)}</span>
                 <span style="font-size:11px;color:var(--text-muted);margin-left:6px">@${escHtml(u.username)}</span>
-                ${u.cicloNombre ? `<span style="font-size:11px;color:var(--navy);margin-left:6px">· ${escHtml(u.cicloCod)}</span>` : ''}
+                ${(u.ciclos || []).length ? `<span style="font-size:11px;color:var(--navy);margin-left:6px">· ${u.ciclos.map(c => escHtml(c.cod)).join(', ')}</span>` : '<span style="font-size:11px;color:var(--danger);margin-left:6px">· Sin ciclo</span>'}
                 ${!u.activo ? '<span style="font-size:11px;color:var(--danger);margin-left:6px">· Inactivo</span>' : ''}
               </div>
               <div style="display:flex;gap:6px">
@@ -2978,12 +3026,12 @@ async function adminLoadUsersAndProfiles() {
                     style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;width:100%">
                 </div>
                 <div class="field">
-                  <label class="field-label" style="font-size:11px">Ciclo asignado</label>
-                  <select id="editUserCiclo_${u.id}"
-                    style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;width:100%">
-                    <option value="">— Sin ciclo —</option>
-                    ${profiles.map(p => `<option value="${p.id}" ${p.id === u.ciclo_id ? 'selected' : ''}>${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('')}
-                  </select>
+                  <label class="field-label" style="font-size:11px">Ciclos asignados</label>
+                  <div style="display:flex;flex-direction:column;gap:4px;font-size:13px">
+                    ${profiles.map(p => `<label style="display:flex;gap:6px;align-items:center;cursor:pointer">
+                      <input type="checkbox" class="editUserCicloChk_${u.id}" value="${p.id}" ${(u.cicloIds || []).includes(p.id) ? 'checked' : ''}>
+                      ${escHtml(p.cod)} — ${escHtml(p.nombre)}</label>`).join('')}
+                  </div>
                 </div>
               </div>
               <div class="fields-row" style="margin-bottom:10px">
@@ -3075,11 +3123,11 @@ async function adminCreateUser() {
   const username = document.getElementById('newUserUsername').value.trim();
   const nombre   = document.getElementById('newUserNombre').value.trim();
   const password = document.getElementById('newUserPwd').value;
-  const cicloId  = document.getElementById('newUserCiclo').value || null;
+  const cicloIds = [...document.querySelectorAll('.newUserCicloChk:checked')].map(el => parseInt(el.value));
   const st       = document.getElementById('adminNewUserStatus');
   if (!username || !password) { st.textContent = 'Usuario y contraseña son obligatorios.'; st.style.color='var(--danger)'; return; }
   try {
-    await Users.create({ username, nombre, password, cicloId: cicloId ? parseInt(cicloId) : null });
+    await Users.create({ username, nombre, password, cicloIds });
     st.textContent = `✔ Docente "${username}" creado correctamente.`;
     st.style.color = 'var(--success)';
     ['newUserUsername','newUserNombre','newUserPwd'].forEach(id => document.getElementById(id).value = '');
@@ -3094,7 +3142,7 @@ function adminToggleEditUser(id) {
 
 async function adminSaveUser(id) {
   const nombre   = document.getElementById(`editUserNombre_${id}`)?.value.trim();
-  const cicloId  = document.getElementById(`editUserCiclo_${id}`)?.value || null;
+  const cicloIds = [...document.querySelectorAll(`.editUserCicloChk_${id}:checked`)].map(el => parseInt(el.value));
   const password = document.getElementById(`editUserPwd_${id}`)?.value.trim();
   const st       = document.getElementById(`editUserStatus_${id}`);
 
@@ -3113,7 +3161,7 @@ async function adminSaveUser(id) {
   try {
     await Users.update(id, {
       nombre:  nombre  || null,
-      cicloId: cicloId ? parseInt(cicloId) : null,
+      cicloIds,
     });
   } catch(e) {
     errors.push('Datos: ' + e.message);
@@ -3260,10 +3308,11 @@ async function saveAdminConfig() {
 
     // Propagar valores bloqueados a módulos en memoria
     Object.values(state.modules).forEach(mod => {
-      if (!mod._loaded) return;
+      if (!mod._loaded || mod.meta?.cicloId !== cicloId) return;
+      mod.lockedKeys = Object.keys(adminConfig.lockedFields);
       Object.entries(adminConfig.lockedValues).forEach(([k, v]) => { if (v !== '') mod.data[k] = v; });
     });
-    if (state.activeId) renderMainContent();
+    if (state.activeId) { applyModuleLocks(state.modules[state.activeId]); renderMainContent(); }
   }
 
   // ── 3. Guardar estado local de la sesión admin ──
@@ -4070,15 +4119,10 @@ async function initApp(user) {
   const adminBtn = document.querySelector('button[onclick="openAdmin()"]');
   if (adminBtn) adminBtn.style.display = adminLoggedIn ? '' : 'none';
 
-  // Si el usuario es docente, precargar su perfil de ciclo para aplicar locks
-  if (user.cicloId) {
-    try {
-      const { profile } = await Profiles.get(user.cicloId);
-      (profile.locked_fields || []).forEach(f => {
-        adminConfig.lockedFields[f.key]  = true;
-        adminConfig.lockedValues[f.key]  = f.value;
-      });
-    } catch(_) {}
+  // Los bloqueos se aplican por programación (según su ciclo) al abrirla.
+  // El admin necesita la lista de ciclos para los selectores.
+  if (adminLoggedIn) {
+    try { _allProfiles = (await Profiles.list()).profiles || []; } catch(_) {}
   }
 
   // Cargar lista de módulos del usuario

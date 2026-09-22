@@ -46,7 +46,7 @@ function getLockedFields(cicloId) {
 // GET /api/modules — Listar programaciones
 //
 // Admin: devuelve todas, con nombre del docente y ciclo
-// Docente: devuelve las propias + las del mismo ciclo (solo lectura)
+// Docente: devuelve las propias + las de cualquiera de sus ciclos (solo lectura)
 // =============================================================
 router.get('/', requireAuth, (req, res) => {
   let rows;
@@ -75,9 +75,9 @@ router.get('/', requireAuth, (req, res) => {
       JOIN users u ON u.id = p.user_id
       LEFT JOIN ciclo_profiles cp ON cp.id = p.ciclo_id
       WHERE p.user_id = ?
-         OR p.ciclo_id = ?
+         OR p.ciclo_id IN (SELECT ciclo_id FROM user_ciclos WHERE user_id = ?)
       ORDER BY p.updated_at DESC
-    `).all(req.user.id, req.user.id, req.user.cicloId || -1);
+    `).all(req.user.id, req.user.id, req.user.id);
   }
 
   res.json({ modules: rows });
@@ -86,7 +86,8 @@ router.get('/', requireAuth, (req, res) => {
 // =============================================================
 // POST /api/modules — Crear programación
 // Body: { titulo, codigo, data, cicloId? }
-// Si no se indica cicloId, se usa el del usuario autenticado
+// Si no se indica cicloId, se usa el primer ciclo del usuario.
+// Un docente solo puede crear en ciclos a los que pertenece.
 // =============================================================
 router.post('/', requireAuth, (req, res) => {
   const { titulo, codigo, data = {}, cicloId } = req.body;
@@ -95,8 +96,11 @@ router.post('/', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'El título (nombre del módulo) es obligatorio.' });
   }
 
-  // Usar el ciclo del docente por defecto
-  const effectiveCicloId = cicloId || req.user.cicloId || null;
+  const isAdmin = req.user.role === 'admin';
+  if (cicloId && !isAdmin && !req.user.cicloIds.includes(Number(cicloId))) {
+    return res.status(403).json({ error: 'No perteneces a ese ciclo.' });
+  }
+  const effectiveCicloId = cicloId ? Number(cicloId) : (req.user.cicloIds[0] || null);
 
   // Mezclar campos bloqueados del ciclo en los datos antes de guardar
   // Los campos bloqueados siempre prevalecen sobre lo que envíe el cliente
@@ -139,7 +143,7 @@ router.get('/:id', requireAuth, (req, res) => {
   // Comprobar permisos de acceso
   const isOwner    = row.user_id  === req.user.id;
   const isAdmin    = req.user.role === 'admin';
-  const sameCiclo  = row.ciclo_id && row.ciclo_id === req.user.cicloId;
+  const sameCiclo  = !!row.ciclo_id && req.user.cicloIds.includes(row.ciclo_id);
   const readOnly   = !isOwner && !isAdmin; // docente de mismo ciclo → solo lectura
 
   if (!isOwner && !isAdmin && !sameCiclo) {
@@ -175,10 +179,11 @@ router.get('/:id', requireAuth, (req, res) => {
 // PUT /api/modules/:id — Editar programación
 // Solo el propietario o el admin pueden editar
 // Los campos bloqueados del ciclo se sobrescriben siempre
+// Body: { titulo?, codigo?, data?, cicloId? } — cicloId permite cambiar de ciclo
 // =============================================================
 router.put('/:id', requireAuth, (req, res) => {
   const moduleId = parseInt(req.params.id);
-  const { titulo, codigo, data } = req.body;
+  const { titulo, codigo, data, cicloId } = req.body;
 
   const row = db.prepare(
     'SELECT * FROM programaciones WHERE id = ?'
@@ -191,19 +196,29 @@ router.put('/:id', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'No tienes permiso para editar esta programación.' });
   }
 
+  // Cambio de ciclo (opcional): docente solo a ciclos a los que pertenece
+  let newCicloId = row.ciclo_id;
+  if (cicloId !== undefined) {
+    newCicloId = cicloId ? Number(cicloId) : null;
+    if (newCicloId && req.user.role !== 'admin' && !req.user.cicloIds.includes(newCicloId)) {
+      return res.status(403).json({ error: 'No perteneces a ese ciclo.' });
+    }
+  }
+
   // Los campos bloqueados del ciclo siempre prevalecen (no se pueden editar)
-  const lockedFields = getLockedFields(row.ciclo_id);
+  const lockedFields = getLockedFields(newCicloId);
   const currentData  = JSON.parse(row.data || '{}');
   const finalData    = { ...currentData, ...(data || {}), ...lockedFields };
 
   db.prepare(`
     UPDATE programaciones
-    SET titulo = ?, codigo = ?, data = ?, updated_at = datetime('now')
+    SET titulo = ?, codigo = ?, data = ?, ciclo_id = ?, updated_at = datetime('now')
     WHERE id = ?
   `).run(
     titulo ?? row.titulo,
     codigo ?? row.codigo,
     JSON.stringify(finalData),
+    newCicloId,
     moduleId
   );
 

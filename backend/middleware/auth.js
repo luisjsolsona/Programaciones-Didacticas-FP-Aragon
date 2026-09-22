@@ -5,7 +5,7 @@
 //
 //   requireAuth   — Verifica que el JWT en la cookie es válido.
 //                   Si no lo es, devuelve 401.
-//                   Si es válido, añade req.user = { id, role, cicloId }
+//                   Si es válido, añade req.user = { id, role, cicloIds, cicloId }
 //
 //   requireAdmin  — Usa requireAuth y además exige role === 'admin'.
 //                   Si no es admin, devuelve 403.
@@ -16,6 +16,7 @@
 // =============================================================
 
 const jwt = require('jsonwebtoken');
+const db  = require('../db');
 
 const SECRET = process.env.JWT_SECRET || 'secreto_por_defecto_cambiar';
 
@@ -34,10 +35,17 @@ function requireAuth(req, res, next) {
     const payload = jwt.verify(token, SECRET);
 
     // Adjuntar los datos del usuario a la request para usarlos en los handlers
+    // Los ciclos se leen de la BD en cada petición: si el admin cambia
+    // las asignaciones, el docente las ve sin volver a iniciar sesión
+    const cicloIds = db.prepare(
+      'SELECT ciclo_id FROM user_ciclos WHERE user_id = ?'
+    ).all(payload.userId).map(r => r.ciclo_id);
+
     req.user = {
-      id:      payload.userId,
-      role:    payload.role,
-      cicloId: payload.cicloId || null,
+      id:       payload.userId,
+      role:     payload.role,
+      cicloIds,
+      cicloId:  cicloIds[0] || null, // compatibilidad
     };
 
     next();

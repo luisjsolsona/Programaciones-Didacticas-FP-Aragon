@@ -34,15 +34,27 @@ router.get('/', requireAdmin, (req, res) => {
     ORDER BY u.role DESC, u.username ASC
   `).all();
 
+  // Adjuntar todos los ciclos de cada usuario (N:M)
+  const rel = db.prepare(`
+    SELECT uc.user_id, cp.id, cp.cod, cp.nombre
+    FROM user_ciclos uc JOIN ciclo_profiles cp ON cp.id = uc.ciclo_id
+    ORDER BY cp.cod
+  `).all();
+  users.forEach(u => {
+    u.ciclos   = rel.filter(r => r.user_id === u.id).map(({ id, cod, nombre }) => ({ id, cod, nombre }));
+    u.cicloIds = u.ciclos.map(c => c.id);
+  });
+
   res.json({ users });
 });
 
 // =============================================================
 // POST /api/users — Crear docente (solo admin)
-// Body: { username, password, nombre, cicloId }
+// Body: { username, password, nombre, cicloIds[] }  (cicloId legacy)
 // =============================================================
 router.post('/', requireAdmin, (req, res) => {
-  const { username, password, nombre, cicloId } = req.body;
+  const { username, password, nombre } = req.body;
+  const cicloIds = db.parseCicloIds(req.body) || [];
 
   if (!username || !password) {
     return res.status(400).json({ error: 'Usuario y contraseña son obligatorios.' });
@@ -54,23 +66,22 @@ router.post('/', requireAdmin, (req, res) => {
     return res.status(409).json({ error: 'El nombre de usuario ya existe.' });
   }
 
-  // Verificar que el ciclo existe si se proporciona
-  if (cicloId) {
-    const ciclo = db.prepare('SELECT id FROM ciclo_profiles WHERE id = ?').get(cicloId);
-    if (!ciclo) {
-      return res.status(400).json({ error: 'El ciclo indicado no existe.' });
-    }
+  // Verificar que los ciclos existen
+  if (db.findMissingCiclo(cicloIds) !== null) {
+    return res.status(400).json({ error: 'Alguno de los ciclos indicados no existe.' });
   }
 
   const hash = bcrypt.hashSync(password, 12);
 
   const result = db.prepare(`
-    INSERT INTO users (username, password_hash, role, nombre, ciclo_id)
-    VALUES (?, ?, 'docente', ?, ?)
-  `).run(username, hash, nombre || null, cicloId || null);
+    INSERT INTO users (username, password_hash, role, nombre)
+    VALUES (?, ?, 'docente', ?)
+  `).run(username, hash, nombre || null);
+
+  db.setUserCiclos(result.lastInsertRowid, cicloIds);
 
   res.status(201).json({
-    user: { id: result.lastInsertRowid, username, nombre, cicloId }
+    user: { id: result.lastInsertRowid, username, nombre, cicloIds }
   });
 });
 
@@ -96,17 +107,20 @@ router.get('/:id', requireAuth, (req, res) => {
 
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado.' });
 
+  user.ciclos   = db.getUserCiclos(user.id);
+  user.cicloIds = user.ciclos.map(c => c.id);
   res.json({ user });
 });
 
 // =============================================================
 // PUT /api/users/:id — Editar docente (solo admin)
-// Body: { nombre?, cicloId?, activo? }
+// Body: { nombre?, cicloIds?[], activo? }  (cicloId legacy)
 // No permite cambiar contraseña (usar /password) ni username
 // =============================================================
 router.put('/:id', requireAdmin, (req, res) => {
   const targetId = parseInt(req.params.id);
-  const { nombre, cicloId, activo } = req.body;
+  const { nombre, activo } = req.body;
+  const cicloIds = db.parseCicloIds(req.body); // undefined = no tocar
 
   // Leer datos actuales para no sobreescribir lo que no se manda
   const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
@@ -115,20 +129,20 @@ router.put('/:id', requireAdmin, (req, res) => {
     return res.status(403).json({ error: 'La cuenta admin no se puede modificar desde aquí.' });
   }
 
-  // Verificar que el ciclo existe si se proporciona
-  if (cicloId) {
-    const ciclo = db.prepare('SELECT id FROM ciclo_profiles WHERE id = ?').get(parseInt(cicloId));
-    if (!ciclo) return res.status(400).json({ error: 'El ciclo indicado no existe.' });
+  // Verificar que los ciclos existen
+  if (cicloIds && db.findMissingCiclo(cicloIds) !== null) {
+    return res.status(400).json({ error: 'Alguno de los ciclos indicados no existe.' });
   }
 
   // Solo actualizar los campos recibidos; preservar los demás
   const newNombre = nombre  !== undefined ? (nombre || null)          : target.nombre;
-  const newCiclo  = cicloId !== undefined ? (cicloId ? parseInt(cicloId) : null) : target.ciclo_id;
   const newActivo = activo  !== undefined ? (activo ? 1 : 0)          : target.activo;
 
   db.prepare(`
-    UPDATE users SET nombre = ?, ciclo_id = ?, activo = ? WHERE id = ?
-  `).run(newNombre, newCiclo, newActivo, targetId);
+    UPDATE users SET nombre = ?, activo = ? WHERE id = ?
+  `).run(newNombre, newActivo, targetId);
+
+  if (cicloIds) db.setUserCiclos(targetId, cicloIds);
 
   res.json({ ok: true });
 });

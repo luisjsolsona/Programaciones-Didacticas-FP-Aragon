@@ -14,20 +14,25 @@ router.get('/', requireAdmin, (req, res) => {
   const ciclos = db.prepare(`SELECT id, cod, nombre, locked_fields, created_at FROM ciclo_profiles`).all();
   const users  = db.prepare(`SELECT id, username, password_hash, role, ciclo_id, nombre, activo, created_at FROM users`).all();
   const progs  = db.prepare(`SELECT id, user_id, ciclo_id, titulo, codigo, data, created_at, updated_at FROM programaciones`).all();
+  const userCiclos = db.prepare(`SELECT user_id, ciclo_id FROM user_ciclos`).all();
   res.json({
     version: 3,
     exportDate: new Date().toISOString(),
     ciclos:         ciclos.map(c => ({ ...c, locked_fields: JSON.parse(c.locked_fields || '[]') })),
     users,
+    user_ciclos: userCiclos,
     programaciones: progs.map(p => ({ ...p, data: JSON.parse(p.data || '{}') })),
   });
 });
 
 router.post('/', requireAdmin, (req, res) => {
   const { version, ciclos = [], users = [], programaciones = [] } = req.body || {};
+  // Backups anteriores a la relación N:M: derivar de users.ciclo_id
+  const userCiclos = req.body.user_ciclos
+    || users.filter(u => u.ciclo_id).map(u => ({ user_id: u.id, ciclo_id: u.ciclo_id }));
   if (version !== 3) return res.status(400).json({ error: 'Formato de copia no soportado (se espera version 3).' });
 
-  const stats = { ciclos: 0, users: 0, programaciones: 0 };
+  const stats = { ciclos: 0, users: 0, user_ciclos: 0, programaciones: 0 };
   const run = db.transaction(() => {
     // 1. Ciclos: upsert por cod
     const cicloMap = {};
@@ -54,6 +59,17 @@ router.post('/', requireAdmin, (req, res) => {
       else    { userMap[u.id] = insU.run(u.username, u.password_hash, u.role || 'docente', ciclo, u.nombre, u.activo ?? 1).lastInsertRowid; }
       stats.users++;
     }
+
+    // 2b. Asignaciones docente ↔ ciclo (se añaden a las existentes)
+    const insUC = db.prepare(`INSERT OR IGNORE INTO user_ciclos (user_id, ciclo_id) VALUES (?, ?)`);
+    for (const r of userCiclos) {
+      const uid = userMap[r.user_id], cid = cicloMap[r.ciclo_id];
+      if (uid && cid) stats.user_ciclos += insUC.run(uid, cid).changes;
+    }
+    db.prepare(`
+      UPDATE users SET ciclo_id = (SELECT MIN(ciclo_id) FROM user_ciclos WHERE user_id = users.id)
+      WHERE ciclo_id IS NULL OR ciclo_id NOT IN (SELECT ciclo_id FROM user_ciclos WHERE user_id = users.id)
+    `).run();
 
     // 3. Programaciones: se añaden (no se sobrescriben las existentes)
     const insP = db.prepare(`INSERT INTO programaciones (user_id, ciclo_id, titulo, codigo, data, created_at, updated_at)
