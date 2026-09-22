@@ -8,11 +8,13 @@
 //   1. juice   → pasa los estilos de <style> a atributos style=""
 //   2. ajustes → html-to-docx solo entiende background-color
 //   3. html-to-docx → documento Word con numeración de páginas
+//   4. docx-fix     → reordena el XML según el esquema OOXML (si no, Word no lo abre)
 // =============================================================
 const express    = require('express');
 const juice      = require('juice');
 const HTMLtoDOCX = require('html-to-docx');
 const { requireAuth } = require('../middleware/auth');
+const { fixDocx } = require('../docx-fix');
 
 const router = express.Router();
 
@@ -30,7 +32,8 @@ router.post('/docx', requireAuth, async (req, res) => {
 
     const buf = await HTMLtoDOCX(html, null, {
       orientation: 'portrait',
-      margins: { top: 1134, right: 1134, bottom: 1134, left: 1134 }, // 2 cm
+      // header/footer/gutter obligatorios: si faltan, html-to-docx escribe "undefined"
+      margins: { top: 1134, right: 1134, bottom: 1134, left: 1134, header: 567, footer: 567, gutter: 0 }, // 2 cm / 1 cm
       font: 'Calibri',
       fontSize: 22,                     // 11 pt (medios puntos)
       title: String(title || 'Programación didáctica').slice(0, 200),
@@ -39,6 +42,7 @@ router.post('/docx', requireAuth, async (req, res) => {
       footer: true,
       pageNumber: true,
     }, null);
+    const fixed = await fixDocx(buf);
 
     const safeName = String(filename || 'programacion')
       .replace(/[^\w.\-]+/g, '_').replace(/\.docx?$/i, '').slice(0, 120) + '.docx';
@@ -47,7 +51,7 @@ router.post('/docx', requireAuth, async (req, res) => {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'Content-Disposition': `attachment; filename="${safeName}"`,
     });
-    res.send(buf);
+    res.send(fixed);
   } catch (e) {
     console.error('[Export] docx:', e.message);
     res.status(500).json({ error: 'No se pudo generar el documento Word.' });
