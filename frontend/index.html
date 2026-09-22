@@ -876,7 +876,7 @@ const Audit = {
   #headerUserInfo { font-size: 14px !important; color: rgba(255,255,255,.75) !important; }
 
   /* Barra lateral */
-  .sidebar { width: 300px; min-width: 300px; background: #fbfcfd; }
+  .sidebar { width: 316px; min-width: 316px; background: #fbfcfd; }
   .sidebar-head { padding: 20px 16px 14px; }
   .sidebar-head h2 { font-size: 19px; margin-bottom: 14px; }
   .modules-list { padding: 10px; }
@@ -900,8 +900,30 @@ const Audit = {
     padding: 1px 7px; border-radius: 10px; margin-left: 4px; vertical-align: 1px; font-style: normal;
   }
   .module-item.active .ro-badge { background: rgba(255,255,255,.18); color: #fff; }
-  .module-action-btn, .module-delete-btn { font-size: 16px; padding: 4px 7px; border-radius: 5px; }
-  .module-item:not(.active) .module-action-btn:hover { background: rgba(21,41,77,.08); }
+  /* Tarjeta de programación: contenido arriba, acciones abajo */
+  .module-item { flex-direction: column; align-items: stretch; gap: 0; }
+  .card-body { min-width: 0; }
+  .card-actions {
+    display: flex; gap: 6px; margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid rgba(31,95,209,.18);
+  }
+  .card-btn {
+    flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    min-height: 32px; padding: 5px 4px; white-space: nowrap; border-radius: 7px; cursor: pointer;
+    font: inherit; font-size: 13px; font-weight: 600; color: var(--navy);
+    background: var(--white); border: 1px solid #c5d4ef;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .card-btn .card-ico { font-size: 15px; line-height: 1; }
+  .card-btn:hover { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .card-btn-danger { color: var(--danger); border-color: #f0c8c4; }
+  .card-btn-danger:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .card-btn:focus-visible { outline: 3px solid #8fb3f2; outline-offset: 1px; }
+  /* En la tarjeta activa (fondo oscuro) */
+  .module-item.active .card-actions { border-top-color: rgba(255,255,255,.18); }
+  .module-item.active .card-btn { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.28); color: #fff; }
+  .module-item.active .card-btn:hover { background: var(--gold); border-color: var(--gold); color: var(--navy); }
+  .module-item.active .card-btn-danger:hover { background: #e5534b; border-color: #e5534b; color: #fff; }
 
   /* Contenido */
   .main-content { padding: 32px 36px; }
@@ -1875,6 +1897,7 @@ function ddImportModuleJSON() {
 function exportJSON() {
   if (!state.activeId) { showStatus('Primero selecciona un módulo', 'error'); return; }
   const mod  = state.modules[state.activeId];
+  if (mod.readOnly) { showStatus('Las programaciones de solo lectura no se pueden exportar', 'error'); return; }
   const blob = new Blob([JSON.stringify(mod, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -1948,17 +1971,20 @@ function renderModulesList() {
     const codeCourse = [m.meta.code, m.meta.course].filter(Boolean).join(' · ');
     const kind = m.readOnly ? 'is-readonly' : 'is-own';
     return `<div class="module-item ${kind} ${active}" onclick="selectModule(${id})" title="${m.readOnly ? 'Solo lectura (de otro docente)' : 'Tu programación'}">
-      <div style="flex:1;min-width:0">
+      <div class="card-body">
         <div class="module-name">${escHtml(m.meta.name || 'Sin nombre')}${roIcon}</div>
         ${ciclo   ? `<div class="module-ciclo">${escHtml(ciclo)}</div>` : ''}
         ${codeCourse ? `<div class="module-code">${escHtml(codeCourse)}</div>` : ''}
         ${docente ? `<div class="module-docente">${escHtml(docente)}</div>` : ''}
       </div>
-      <div class="module-item-actions">
-        ${!m.readOnly ? `<button class="module-action-btn" onclick="duplicateModule(event,${id})" title="Duplicar">⎘</button>` : ''}
-        <button class="module-action-btn" onclick="exportModuleFile(event,${id})" title="Exportar .json">↓</button>
-        ${!m.readOnly ? `<button class="module-delete-btn" onclick="deleteModule(event,${id})" title="Eliminar">✕</button>` : ''}
-      </div>
+      ${!m.readOnly ? `<div class="card-actions">
+        <button class="card-btn" onclick="duplicateModule(event,${id})" title="Crear una copia de esta programación">
+          <span class="card-ico">⧉</span>Duplicar</button>
+        <button class="card-btn" onclick="exportModuleFile(event,${id})" title="Descargar como archivo .json">
+          <span class="card-ico">⤓</span>.json</button>
+        <button class="card-btn card-btn-danger" onclick="deleteModule(event,${id})" title="Mover a la papelera">
+          <span class="card-ico">🗑</span>Eliminar</button>
+      </div>` : ''}
     </div>`;
   }).join('');
 }
@@ -2004,10 +2030,12 @@ async function duplicateModule(e, id) {
   } catch(err) { showStatus('Error al duplicar: ' + err.message, 'error'); }
 }
 
-function exportModuleFile(e, id) {
+async function exportModuleFile(e, id) {
   e.stopPropagation();
+  if (!state.modules[id]) return;
+  if (state.modules[id].readOnly) { showStatus('Las programaciones de solo lectura no se pueden exportar', 'error'); return; }
+  if (!state.modules[id]._loaded) await loadModuleData(id);   // si no, saldría sin datos
   const mod  = state.modules[id];
-  if (!mod) return;
   const payload  = JSON.stringify({ version: 1, module: mod }, null, 2);
   const blob     = new Blob([payload], { type: 'application/json' });
   const url      = URL.createObjectURL(blob);
