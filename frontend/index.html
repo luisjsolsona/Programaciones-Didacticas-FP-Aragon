@@ -711,11 +711,50 @@ const Modules = {
   .import-check-row label { font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; }
   .import-check-row .import-check-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
+  /* ===== ADMIN: FORMULARIO DE DOCENTE ===== */
+  .user-form {
+    display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+    gap: 14px 24px; align-items: start;
+  }
+  .user-form-col { display: flex; flex-direction: column; gap: 12px; }
+  .user-form .field { gap: 5px; }
+  .user-form .field-label { font-size: 12px; }
+  .user-form .field-hint { font-weight: 400; color: var(--text-muted); font-size: 11px; }
+  .user-form .field input[type="text"],
+  .user-form .field input[type="password"] { padding: 8px 12px; font-size: 13px; }
+  .user-form-foot {
+    grid-column: 1 / -1; display: flex; align-items: center; gap: 8px;
+    padding-top: 12px; border-top: 1px dashed var(--border);
+  }
+  .user-form-foot .status { font-size: 12px; margin-right: auto; }
+  .user-edit-panel { padding: 14px 16px; border-top: 1px solid var(--border); background: var(--cream); }
+
+  /* Selector de ciclos (tarjetas con casilla) */
+  .ciclo-picker { display: flex; flex-direction: column; gap: 6px; }
+  .ciclo-picker .empty { font-size: 12px; color: var(--text-muted); }
+  .ciclo-option {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; background: var(--white);
+    border: 1.5px solid var(--border); border-radius: 7px;
+    cursor: pointer; transition: border-color .15s, background .15s;
+    text-align: left;
+  }
+  .ciclo-option:hover { border-color: var(--navy); }
+  .ciclo-option:has(input:checked) { border-color: var(--navy); background: var(--locked-bg); }
+  .field .ciclo-option input[type="checkbox"] {
+    width: 16px; height: 16px; padding: 0; margin: 0; flex: 0 0 auto;
+    border: none; accent-color: var(--navy); cursor: pointer;
+  }
+  .ciclo-option .co-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+  .ciclo-option .co-cod  { font-family: monospace; font-size: 11px; font-weight: 700; color: var(--navy); }
+  .ciclo-option .co-name { font-size: 13px; color: var(--text); }
+
   /* ===== RESPONSIVE ===== */
   @media (max-width: 768px) {
     .sidebar { width: 220px; min-width: 220px; }
     .main-content { padding: 16px; }
     .fields-row, .fields-row-3 { grid-template-columns: 1fr; }
+    .user-form { grid-template-columns: 1fr; }
     .admin-panel { width: 100%; }
   }
 
@@ -1095,34 +1134,33 @@ const Modules = {
             <button class="btn btn-primary btn-sm" onclick="adminOpenNewUser()">+ Nuevo docente</button>
             <div id="adminNewUserForm" style="display:none;margin-top:14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;padding:14px">
               <div style="font-weight:600;font-size:13px;margin-bottom:10px">Nuevo docente</div>
-              <div class="fields-row" style="margin-bottom:8px">
-                <div class="field">
-                  <label class="field-label">Usuario</label>
-                  <input type="text" id="newUserUsername" placeholder="nombre.apellido"
-                    style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
+              <div class="user-form">
+                <div class="user-form-col">
+                  <div class="field">
+                    <label class="field-label">Usuario</label>
+                    <input type="text" id="newUserUsername" placeholder="nombre.apellido">
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Nombre completo</label>
+                    <input type="text" id="newUserNombre" placeholder="Nombre Apellidos">
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Contraseña inicial</label>
+                    <input type="password" id="newUserPwd" placeholder="Mín. 6 caracteres">
+                  </div>
                 </div>
-                <div class="field">
-                  <label class="field-label">Nombre completo</label>
-                  <input type="text" id="newUserNombre" placeholder="Nombre Apellidos"
-                    style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
+                <div class="user-form-col">
+                  <div class="field">
+                    <label class="field-label">Ciclos asignados <span class="field-hint">(puedes marcar varios)</span></label>
+                    <div id="newUserCiclos" class="ciclo-picker"></div>
+                  </div>
+                </div>
+                <div class="user-form-foot">
+                  <span id="adminNewUserStatus" class="status"></span>
+                  <button class="btn btn-ghost btn-sm" onclick="document.getElementById('adminNewUserForm').style.display='none'">Cancelar</button>
+                  <button class="btn btn-primary btn-sm" onclick="adminCreateUser()">Crear docente</button>
                 </div>
               </div>
-              <div class="fields-row" style="margin-bottom:10px">
-                <div class="field">
-                  <label class="field-label">Contraseña inicial</label>
-                  <input type="password" id="newUserPwd" placeholder="Mín. 6 caracteres"
-                    style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
-                </div>
-                <div class="field">
-                  <label class="field-label">Ciclos asignados</label>
-                  <div id="newUserCiclos" style="display:flex;flex-direction:column;gap:4px;font-size:13px"></div>
-                </div>
-              </div>
-              <div style="display:flex;gap:8px">
-                <button class="btn btn-primary btn-sm" onclick="adminCreateUser()">Crear docente</button>
-                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('adminNewUserForm').style.display='none'">Cancelar</button>
-              </div>
-              <div id="adminNewUserStatus" style="font-size:12px;margin-top:6px"></div>
             </div>
           </div>
         </div>
@@ -2975,6 +3013,19 @@ function adminSwitchTab(tab) {
 // ── Helpers del panel admin ────────────────────────────────
 
 // Carga usuarios y perfiles y rellena las listas y selects del panel
+// Lista de ciclos con casillas (formulario de docente)
+function cicloPickerHtml(profiles, chkClass, selectedIds = []) {
+  if (!profiles.length) return '<div class="empty">No hay ciclos creados.</div>';
+  return profiles.map(p => `
+    <label class="ciclo-option">
+      <input type="checkbox" class="${chkClass}" value="${p.id}" ${selectedIds.includes(p.id) ? 'checked' : ''}>
+      <span class="co-text">
+        <span class="co-cod">${escHtml(p.cod)}</span>
+        <span class="co-name">${escHtml(p.nombre)}</span>
+      </span>
+    </label>`).join('');
+}
+
 async function adminLoadUsersAndProfiles() {
   try {
     const [{ users }, { profiles }] = await Promise.all([Users.list(), Profiles.list()]);
@@ -2990,10 +3041,7 @@ async function adminLoadUsersAndProfiles() {
     _allProfiles = profiles;
     const newUserCiclos = document.getElementById('newUserCiclos');
     if (newUserCiclos) {
-      newUserCiclos.innerHTML = profiles.length
-        ? profiles.map(p => `<label style="display:flex;gap:6px;align-items:center;cursor:pointer">
-            <input type="checkbox" class="newUserCicloChk" value="${p.id}"> ${escHtml(p.cod)} — ${escHtml(p.nombre)}</label>`).join('')
-        : '<span style="color:var(--text-muted);font-size:12px">No hay ciclos creados.</span>';
+      newUserCiclos.innerHTML = cicloPickerHtml(profiles, 'newUserCicloChk');
     }
 
     // Render lista de usuarios
@@ -3018,33 +3066,29 @@ async function adminLoadUsersAndProfiles() {
               </div>
             </div>
             <!-- Formulario de edición inline (oculto por defecto) -->
-            <div id="editUserForm_${u.id}" style="display:none;padding:12px 14px;border-top:1px solid var(--border);background:var(--cream)">
-              <div class="fields-row" style="margin-bottom:8px">
-                <div class="field">
-                  <label class="field-label" style="font-size:11px">Nombre completo</label>
-                  <input type="text" id="editUserNombre_${u.id}" value="${escHtml(u.nombre || '')}"
-                    style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;width:100%">
-                </div>
-                <div class="field">
-                  <label class="field-label" style="font-size:11px">Ciclos asignados</label>
-                  <div style="display:flex;flex-direction:column;gap:4px;font-size:13px">
-                    ${profiles.map(p => `<label style="display:flex;gap:6px;align-items:center;cursor:pointer">
-                      <input type="checkbox" class="editUserCicloChk_${u.id}" value="${p.id}" ${(u.cicloIds || []).includes(p.id) ? 'checked' : ''}>
-                      ${escHtml(p.cod)} — ${escHtml(p.nombre)}</label>`).join('')}
+            <div id="editUserForm_${u.id}" class="user-edit-panel" style="display:none">
+              <div class="user-form">
+                <div class="user-form-col">
+                  <div class="field">
+                    <label class="field-label">Nombre completo</label>
+                    <input type="text" id="editUserNombre_${u.id}" value="${escHtml(u.nombre || '')}">
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Nueva contraseña <span class="field-hint">(vacío = no cambiar)</span></label>
+                    <input type="password" id="editUserPwd_${u.id}" placeholder="Mín. 6 caracteres" autocomplete="new-password">
                   </div>
                 </div>
-              </div>
-              <div class="fields-row" style="margin-bottom:10px">
-                <div class="field">
-                  <label class="field-label" style="font-size:11px">Nueva contraseña <span style="color:var(--text-muted)">(dejar vacío para no cambiar)</span></label>
-                  <input type="password" id="editUserPwd_${u.id}" placeholder="Mín. 6 caracteres"
-                    style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;width:100%">
+                <div class="user-form-col">
+                  <div class="field">
+                    <label class="field-label">Ciclos asignados <span class="field-hint">(puedes marcar varios)</span></label>
+                    <div class="ciclo-picker">${cicloPickerHtml(profiles, `editUserCicloChk_${u.id}`, u.cicloIds || [])}</div>
+                  </div>
                 </div>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-primary btn-sm" onclick="adminSaveUser(${u.id})">💾 Guardar</button>
-                <button class="btn btn-ghost btn-sm" onclick="adminToggleEditUser(${u.id})">Cancelar</button>
-                <span id="editUserStatus_${u.id}" style="font-size:12px"></span>
+                <div class="user-form-foot">
+                  <span id="editUserStatus_${u.id}" class="status"></span>
+                  <button class="btn btn-ghost btn-sm" onclick="adminToggleEditUser(${u.id})">Cancelar</button>
+                  <button class="btn btn-primary btn-sm" onclick="adminSaveUser(${u.id})">💾 Guardar</button>
+                </div>
               </div>
             </div>
           </div>`).join('');
