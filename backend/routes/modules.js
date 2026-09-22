@@ -21,6 +21,7 @@
 
 const express = require('express');
 const db      = require('../db');
+const { sanitizeDeep, cleanString } = require('../sanitize');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -90,7 +91,10 @@ router.get('/', requireAuth, (req, res) => {
 // Un docente solo puede crear en ciclos a los que pertenece.
 // =============================================================
 router.post('/', requireAuth, (req, res) => {
-  const { titulo, codigo, data = {}, cicloId } = req.body;
+  const { cicloId } = req.body;
+  const titulo = cleanString(req.body.titulo || '');
+  const codigo = req.body.codigo ? cleanString(String(req.body.codigo)) : req.body.codigo;
+  const data   = sanitizeDeep(req.body.data || {});
 
   if (!titulo) {
     return res.status(400).json({ error: 'El título (nombre del módulo) es obligatorio.' });
@@ -183,7 +187,10 @@ router.get('/:id', requireAuth, (req, res) => {
 // =============================================================
 router.put('/:id', requireAuth, (req, res) => {
   const moduleId = parseInt(req.params.id);
-  const { titulo, codigo, data, cicloId } = req.body;
+  const { cicloId } = req.body;
+  const titulo = req.body.titulo != null ? cleanString(String(req.body.titulo)) : undefined;
+  const codigo = req.body.codigo != null ? cleanString(String(req.body.codigo)) : undefined;
+  const data   = req.body.data ? sanitizeDeep(req.body.data) : undefined;
 
   const row = db.prepare(
     'SELECT * FROM programaciones WHERE id = ?'

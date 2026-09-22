@@ -17,7 +17,7 @@
 const express = require('express');
 const bcrypt  = require('bcryptjs');
 const db      = require('../db');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireAdmin, issueSession } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -193,8 +193,16 @@ router.put('/:id/password', requireAuth, (req, res) => {
     }
   }
 
+  // Nueva contraseña + invalidar todas las sesiones abiertas de ese usuario
   const newHash = bcrypt.hashSync(newPassword, 12);
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, targetId);
+  db.prepare(
+    'UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?'
+  ).run(newHash, targetId);
+
+  // Si es su propia contraseña, renovar la cookie para no echarle
+  if (targetId === req.user.id) {
+    issueSession(req, res, db.prepare('SELECT id, role, token_version FROM users WHERE id = ?').get(targetId));
+  }
 
   res.json({ ok: true });
 });

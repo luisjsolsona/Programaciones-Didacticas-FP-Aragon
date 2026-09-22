@@ -12,15 +12,40 @@
 
 const express = require('express');
 const bcrypt  = require('bcryptjs');
-const jwt     = require('jsonwebtoken');
 const db      = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, issueSession } = require('../middleware/auth');
 
 const router = express.Router();
-const SECRET = process.env.JWT_SECRET || 'secreto_por_defecto_cambiar';
 
 // Duración del token: 8 horas (sesión de trabajo normal)
-const TOKEN_TTL = '8h';
+// -------------------------------------------------------------
+// Límite de intentos de login (en memoria)
+// En 15 min: 5 fallos por IP+usuario, 15 por usuario (cualquier IP) o
+// 50 por IP (alto porque todo el centro sale por la misma IP pública)
+// → bloqueo hasta que pasen los 15 min
+// -------------------------------------------------------------
+const WINDOW_MS = 15 * 60 * 1000;
+const MAX_PER_IPUSER = 5, MAX_PER_USER = 15, MAX_PER_IP = 50;
+const failures = new Map(); // key → { count, first }
+
+function hit(key) {
+  const now = Date.now();
+  const f = failures.get(key);
+  if (!f || now - f.first > WINDOW_MS) failures.set(key, { count: 1, first: now });
+  else f.count++;
+}
+function blocked(key, max) {
+  const f = failures.get(key);
+  if (!f) return 0;
+  const left = WINDOW_MS - (Date.now() - f.first);
+  if (left <= 0) { failures.delete(key); return 0; }
+  return f.count >= max ? left : 0;
+}
+// Limpieza periódica para que el Map no crezca
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, f] of failures) if (now - f.first > WINDOW_MS) failures.delete(k);
+}, WINDOW_MS).unref();
 
 // =============================================================
 // POST /api/auth/login
@@ -34,6 +59,19 @@ router.post('/login', (req, res) => {
     return res.status(400).json({ error: 'Usuario y contraseña son obligatorios.' });
   }
 
+  const ipKey   = `ip:${req.ip}`;
+  const uname   = String(username).toLowerCase();
+  const userKey = `iu:${req.ip}:${uname}`;
+  const nameKey = `u:${uname}`;
+  const wait = Math.max(
+    blocked(ipKey, MAX_PER_IP), blocked(userKey, MAX_PER_IPUSER), blocked(nameKey, MAX_PER_USER)
+  );
+  if (wait) {
+    return res.status(429).json({
+      error: `Demasiados intentos fallidos. Prueba de nuevo en ${Math.ceil(wait / 60000)} min.`
+    });
+  }
+
   // Buscar el usuario en la BD (también traemos el código del ciclo para el frontend)
   const user = db.prepare(`
     SELECT u.*, cp.cod AS cicloCod, cp.nombre AS cicloNombre
@@ -45,33 +83,21 @@ router.post('/login', (req, res) => {
   if (!user) {
     // Mismo mensaje para usuario no encontrado y contraseña incorrecta
     // (evitar enumerar usuarios)
+    hit(ipKey); hit(userKey); hit(nameKey);
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
 
   // Verificar contraseña contra el hash almacenado
   const valid = bcrypt.compareSync(password, user.password_hash);
   if (!valid) {
+    hit(ipKey); hit(userKey); hit(nameKey);
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
 
-  // Generar JWT con los datos mínimos necesarios
-  const token = jwt.sign(
-    {
-      userId:  user.id,
-      role:    user.role,
-      cicloId: user.ciclo_id || null,
-    },
-    SECRET,
-    { expiresIn: TOKEN_TTL }
-  );
-
-  // Guardar el JWT en una cookie httpOnly (no accesible desde JS del frontend)
-  res.cookie('token', token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    // secure: true,  // Descomentar si usas HTTPS en producción
-    maxAge: 8 * 60 * 60 * 1000, // 8 horas en ms
-  });
+  // Login correcto: limpiar contador y abrir sesión (JWT en cookie httpOnly)
+  failures.delete(userKey);
+  failures.delete(nameKey);
+  issueSession(req, res, user);
 
   // Devolver los datos públicos del usuario (sin hash ni datos sensibles)
   res.json({

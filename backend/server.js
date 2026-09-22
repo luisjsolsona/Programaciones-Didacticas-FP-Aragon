@@ -8,12 +8,21 @@
 //   - Arrancar el servidor en el puerto configurado
 // =============================================================
 
+// ── Comprobaciones de arranque: sin secretos no se arranca ──
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+  console.error('[Server] ❌ JWT_SECRET no definido o demasiado corto (mín. 32 caracteres) en .env');
+  console.error('           Genera uno con:  openssl rand -hex 32');
+  process.exit(1);
+}
+
 const express      = require('express');
 const cookieParser = require('cookie-parser');
-const cors         = require('cors');
 
 // Inicializar la BD al arrancar (crea tablas y admin por defecto)
-require('./db');
+const db = require('./db');
+const { sanitizeDeep } = require('./sanitize');
+const { startBackupScheduler } = require('./backup-scheduler');
+const APP_VERSION = require('./package.json').version;
 
 // Importar rutas
 const authRoutes     = require('./routes/auth');
@@ -23,6 +32,11 @@ const modulesRoutes  = require('./routes/modules');
 const backupRoutes   = require('./routes/backup');
 
 const app  = express();
+
+// Detrás de Caddy → Nginx (redes Docker privadas): confiar en esos proxies
+// para obtener la IP real del cliente (req.ip) y si la conexión es HTTPS (req.secure)
+app.set('trust proxy', 'loopback, uniquelocal');
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 3001;
 
 // =============================================================
@@ -37,10 +51,6 @@ app.use(cookieParser());
 
 // CORS: solo permite peticiones desde el frontend (Nginx en el mismo compose)
 // En desarrollo puedes añadir 'http://localhost:3000'
-app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN || 'http://localhost:3000',
-  credentials: true,  // Necesario para enviar/recibir cookies
-}));
 
 // =============================================================
 // RUTAS DE LA API
@@ -79,12 +89,41 @@ app.use('/api/backup', backupRoutes);
 // Usado por Docker para saber si el servicio está activo
 // =============================================================
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', version: APP_VERSION, timestamp: new Date().toISOString() });
 });
 
 // =============================================================
 // ARRANQUE
 // =============================================================
+// ── Migración única: sanear HTML ya guardado (protección XSS) ──
+if (!db.prepare(`SELECT 1 FROM app_meta WHERE key = 'sanitized_v1'`).get()) {
+  // Copia de seguridad previa por si hubiera que revertir
+  const fs = require('fs');
+  fs.mkdirSync('/app/data/backups', { recursive: true });
+  const pre = `/app/data/backups/pre-saneado-${Date.now()}.sqlite`;
+  db.exec(`VACUUM INTO '${pre}'`);
+  console.log(`[DB] Copia previa al saneado: ${pre}`);
+
+  let n = 0;
+  db.transaction(() => {
+    const upd = db.prepare('UPDATE programaciones SET data = ?, titulo = ? WHERE id = ?');
+    for (const p of db.prepare('SELECT id, titulo, data FROM programaciones').all()) {
+      const clean = JSON.stringify(sanitizeDeep(JSON.parse(p.data || '{}')));
+      const tit   = sanitizeDeep(p.titulo);
+      if (clean !== p.data || tit !== p.titulo) { upd.run(clean, tit, p.id); n++; }
+    }
+    const updC = db.prepare('UPDATE ciclo_profiles SET locked_fields = ? WHERE id = ?');
+    for (const c of db.prepare('SELECT id, locked_fields FROM ciclo_profiles').all()) {
+      const clean = JSON.stringify(sanitizeDeep(JSON.parse(c.locked_fields || '[]')));
+      if (clean !== c.locked_fields) { updC.run(clean, c.id); n++; }
+    }
+    db.prepare(`INSERT INTO app_meta (key, value) VALUES ('sanitized_v1', datetime('now'))`).run();
+  })();
+  console.log(`[DB] Saneado HTML inicial: ${n} registros actualizados.`);
+}
+
+startBackupScheduler();
+
 app.listen(PORT, () => {
   console.log(`[Server] Backend escuchando en http://localhost:${PORT}`);
   console.log(`[Server] Entorno: ${process.env.NODE_ENV || 'development'}`);

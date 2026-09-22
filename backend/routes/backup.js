@@ -6,6 +6,7 @@
 // =============================================================
 const express = require('express');
 const db      = require('../db');
+const { sanitizeDeep } = require('../sanitize');
 const { requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -40,7 +41,7 @@ router.post('/', requireAdmin, (req, res) => {
     const insC  = db.prepare(`INSERT INTO ciclo_profiles (cod, nombre, locked_fields) VALUES (?, ?, ?)`);
     const updC  = db.prepare(`UPDATE ciclo_profiles SET nombre = ?, locked_fields = ? WHERE id = ?`);
     for (const c of ciclos) {
-      const lf = JSON.stringify(c.locked_fields || []);
+      const lf = JSON.stringify(sanitizeDeep(c.locked_fields || []));
       const ex = findC.get(c.cod);
       if (ex) { updC.run(c.nombre, lf, ex.id); cicloMap[c.id] = ex.id; }
       else    { cicloMap[c.id] = insC.run(c.cod, c.nombre, lf).lastInsertRowid; }
@@ -77,7 +78,7 @@ router.post('/', requireAdmin, (req, res) => {
     for (const p of programaciones) {
       const uid = userMap[p.user_id] ?? req.user.id;
       const cid = p.ciclo_id ? (cicloMap[p.ciclo_id] ?? null) : null;
-      insP.run(uid, cid, p.titulo, p.codigo || null, JSON.stringify(p.data || {}), p.created_at, p.updated_at);
+      insP.run(uid, cid, sanitizeDeep(p.titulo), p.codigo ? sanitizeDeep(p.codigo) : null, JSON.stringify(sanitizeDeep(p.data || {})), p.created_at, p.updated_at);
       stats.programaciones++;
     }
   });

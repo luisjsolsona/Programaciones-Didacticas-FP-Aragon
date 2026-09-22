@@ -18,7 +18,27 @@
 const jwt = require('jsonwebtoken');
 const db  = require('../db');
 
-const SECRET = process.env.JWT_SECRET || 'secreto_por_defecto_cambiar';
+// server.js impide arrancar sin JWT_SECRET, así que aquí siempre existe
+const SECRET    = process.env.JWT_SECRET;
+const TOKEN_TTL = '8h';
+
+// -------------------------------------------------------------
+// issueSession — Firma el JWT y lo guarda en la cookie httpOnly
+// user: fila de users (id, role, token_version)
+// -------------------------------------------------------------
+function issueSession(req, res, user) {
+  const token = jwt.sign(
+    { userId: user.id, role: user.role, tv: user.token_version || 0 },
+    SECRET,
+    { expiresIn: TOKEN_TTL }
+  );
+  res.cookie('token', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure:   req.secure,          // true detrás de Caddy (HTTPS); false en local http
+    maxAge:   8 * 60 * 60 * 1000,  // 8 horas
+  });
+}
 
 // -------------------------------------------------------------
 // requireAuth — Verifica el JWT de la cookie 'token'
@@ -34,7 +54,16 @@ function requireAuth(req, res, next) {
     // Verificar y decodificar el token
     const payload = jwt.verify(token, SECRET);
 
-    // Adjuntar los datos del usuario a la request para usarlos en los handlers
+    // Comprobar en la BD que el usuario sigue activo y que la sesión no ha
+    // sido invalidada (cambio de contraseña → token_version distinto)
+    const u = db.prepare(
+      'SELECT activo, role, token_version FROM users WHERE id = ?'
+    ).get(payload.userId);
+    if (!u || !u.activo || (u.token_version || 0) !== (payload.tv || 0)) {
+      res.clearCookie('token');
+      return res.status(401).json({ error: 'Sesión no válida. Vuelve a iniciar sesión.' });
+    }
+
     // Los ciclos se leen de la BD en cada petición: si el admin cambia
     // las asignaciones, el docente las ve sin volver a iniciar sesión
     const cicloIds = db.prepare(
@@ -43,7 +72,7 @@ function requireAuth(req, res, next) {
 
     req.user = {
       id:       payload.userId,
-      role:     payload.role,
+      role:     u.role,
       cicloIds,
       cicloId:  cicloIds[0] || null, // compatibilidad
     };
@@ -68,4 +97,4 @@ function requireAdmin(req, res, next) {
   });
 }
 
-module.exports = { requireAuth, requireAdmin };
+module.exports = { requireAuth, requireAdmin, issueSession };

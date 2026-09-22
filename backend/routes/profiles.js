@@ -22,6 +22,7 @@
 
 const express = require('express');
 const db      = require('../db');
+const { sanitizeDeep } = require('../sanitize');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -72,7 +73,7 @@ router.post('/', requireAdmin, (req, res) => {
   const result = db.prepare(`
     INSERT INTO ciclo_profiles (cod, nombre, locked_fields)
     VALUES (?, ?, ?)
-  `).run(cod, nombre, JSON.stringify(locked_fields));
+  `).run(cod, nombre, JSON.stringify(sanitizeDeep(locked_fields)));
 
   res.status(201).json({
     profile: { id: result.lastInsertRowid, cod, nombre, locked_fields }
@@ -122,7 +123,7 @@ router.put('/:id', requireAdmin, (req, res) => {
   `).run(
     nombre        ?? existing.nombre,
     locked_fields !== undefined
-      ? JSON.stringify(locked_fields)
+      ? JSON.stringify(sanitizeDeep(locked_fields))
       : existing.locked_fields,
     profileId
   );

@@ -88,6 +88,15 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_uc_ciclo ON user_ciclos(ciclo_id);
 `);
 
+// Columna token_version: al incrementarla se invalidan las sesiones del usuario
+// (cambio de contraseña). Se añade si la BD es anterior.
+if (!db.prepare(`SELECT 1 FROM pragma_table_info('users') WHERE name = 'token_version'`).get()) {
+  db.exec(`ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0`);
+}
+
+// Tabla de migraciones puntuales (para ejecutar cada una una sola vez)
+db.exec(`CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)`);
+
 // Migración única: copiar el ciclo actual de cada usuario a user_ciclos
 if (!hadUserCiclos) {
   const n = db.prepare(`
@@ -108,7 +117,11 @@ const adminExists = db.prepare(
 ).get();
 
 if (!adminExists) {
-  const rawPassword = process.env.ADMIN_PASSWORD || 'admin1234';
+  const rawPassword = process.env.ADMIN_PASSWORD;
+  if (!rawPassword || rawPassword.length < 8) {
+    console.error('[DB] ❌ No existe usuario admin y ADMIN_PASSWORD no está definida (mín. 8 caracteres) en .env');
+    process.exit(1);
+  }
   const hash = bcrypt.hashSync(rawPassword, 12);
 
   db.prepare(`

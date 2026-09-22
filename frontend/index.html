@@ -1944,8 +1944,8 @@ function renderMainContent() {
 
   let html = `<div class="module-toolbar">
     <div class="module-toolbar-left">
-      <h1>${mod.meta.name || 'Sin título'}</h1>
-      <div class="module-meta">Código: ${mod.meta.code || '—'} · Curso ${mod.meta.course || '—'} · ${mod.meta.cycle || ''}</div>
+      <h1>${escHtml(mod.meta.name) || 'Sin título'}</h1>
+      <div class="module-meta">Código: ${escHtml(mod.meta.code) || '—'} · Curso ${escHtml(mod.meta.course) || '—'} · ${escHtml(mod.meta.cycle)}</div>
       ${(!isReadOnly && cicloOptionsForUser().length > 1) ? `<div class="module-meta" style="margin-top:4px">Perfil de ciclo:
         <select onchange="changeModuleCiclo(this.value)" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:5px">
           ${currentUser?.role === 'admin' ? '<option value="">— Sin ciclo —</option>' : ''}
@@ -2015,13 +2015,13 @@ function renderMainContent() {
             // Campo recomendado: poblar la zona de aportación del docente
             const extraKey = field.key + '_extra';
             const extraEl = document.getElementById('rte_' + extraKey);
-            if (extraEl && data[extraKey]) extraEl.innerHTML = data[extraKey];
+            if (extraEl && data[extraKey]) extraEl.innerHTML = safeHtml(data[extraKey]);
             return;
           }
           const el = document.getElementById('rte_' + field.key);
           if (!el) return;
           const val = adminConfig.lockedValues?.[field.key] || data[field.key] || '';
-          if (val) el.innerHTML = val;
+          if (val) el.innerHTML = safeHtml(val);
         } else if (field.type === 'text') {
           const locked = isReadOnly || !!(adminConfig.lockedFields?.[field.key]);
           if (locked) {
@@ -2394,7 +2394,7 @@ function renderRaPct(field, data, locked) {
   const pcts = data[field.key] || {};
   let html = `<div style="display:flex;flex-direction:column;gap:10px;">`;
   field.ras.forEach(ra => {
-    const val = pcts[ra.id] || 0;
+    const val = parseInt(pcts[ra.id]) || 0;
     const lockedAttr = locked ? 'readonly' : `oninput="updateRaPct('${field.key}','${ra.id}',this.value);updateBar('bar_${field.key}_${ra.id}',this.value)"`;
     html += `<div class="ra-block">
       <div class="ra-block-head">
@@ -2703,38 +2703,13 @@ function closePreview() {
 // ===================================================
 //  EXPORTAR WORD (via Claude API)
 // ===================================================
-async function exportWord() {
+function exportWord() {
   if (!state.activeId) return;
-  const mod = state.modules[state.activeId];
-  showLoading('Generando documento Word…');
-
-  const prompt = buildExportPrompt(mod, 'word');
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await res.json();
-    const text = data.content?.map(b => b.text || '').join('');
-    // Generar HTML que simula Word para descarga
-    generateWordHtml(mod, text);
-    hideLoading();
-    showStatus('✔ Documento Word generado');
-  } catch(err) {
-    hideLoading();
-    // Fallback: generar sin IA
-    generateWordHtml(mod, null);
-    showStatus('Documento generado (sin conexión a IA)', 'error');
-  }
+  generateWordHtml(state.modules[state.activeId]);
+  showStatus('✔ Documento Word generado');
 }
 
-function generateWordHtml(mod, aiText) {
+function generateWordHtml(mod) {
   const data = mod.data || {};
   const html = buildDocumentHtml(mod, data, 'word');
   const blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
@@ -2775,7 +2750,7 @@ function buildDocumentHtml(mod, data, target = 'preview') {
 
   // Portada
   body += `<div class="portada">
-    <div class="portada-logo">${centro}</div>
+    <div class="portada-logo">${escHtml(centro)}</div>
     <h1 class="portada-titulo">${escHtml(titulo)}</h1>
     <div class="portada-sub">${escHtml(ciclo)}</div>
     <div class="portada-meta">
@@ -2880,10 +2855,6 @@ ${target === 'word' ? `<!--[if gte mso 9]><xml>
 </html>`;
 }
 
-function buildExportPrompt(mod, format) {
-  const data = mod.data || {};
-  return `Eres un asistente que genera programaciones didácticas de Formación Profesional para el sistema educativo español (Aragón). Tienes los siguientes datos del módulo y debes confirmar brevemente que los has recibido:\n\nMódulo: ${data.modulo_nombre}\nCódigo: ${data.modulo_codigo}\nCiclo: ${data.ciclo}\n\nResponde en una sola línea confirmando.`;
-}
 
 // ===================================================
 //  ADMIN PANEL
@@ -3424,10 +3395,37 @@ function escHtml(str) {
 
 // Limpia HTML del editor: quita atributos de estilo inline basura (Google Docs, Word…)
 // Conserva: b, i, u, strong, em, ul, ol, li, br, p, div, input(checkbox)
+// Parseo inerte: <template> no ejecuta scripts ni carga imágenes (evita <img onerror>)
+function parseInert(html) {
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  return t.content;
+}
+
+// Saneado "suave" para mostrar HTML guardado: conserva el formato,
+// quita scripts, iframes, manejadores on* y URLs javascript:
+function safeHtml(html) {
+  if (!html) return '';
+  const frag = parseInert(String(html));
+  frag.querySelectorAll('script,style,iframe,object,embed,link,meta,base,form,svg,math,frame,frameset').forEach(n => n.remove());
+  frag.querySelectorAll('*').forEach(el => {
+    [...el.attributes].forEach(a => {
+      const n = a.name.toLowerCase(), v = a.value.replace(/[\s\u0000-\u001f]/g, '').toLowerCase();
+      if (n.startsWith('on') || n === 'srcdoc' || n === 'id' ||
+          (['href','src','action','formaction','xlink:href'].includes(n) && /^(javascript|vbscript|data):/.test(v))) {
+        el.removeAttribute(a.name);
+      }
+    });
+  });
+  const div = document.createElement('div');
+  div.appendChild(frag);
+  return div.innerHTML;
+}
+
 function sanitizeHtml(html) {
   if (!html) return '';
   const tmp = document.createElement('div');
-  tmp.innerHTML = html;
+  tmp.appendChild(parseInert(html));
 
   function cleanNode(node) {
     if (node.nodeType === 3) return; // texto, ok
