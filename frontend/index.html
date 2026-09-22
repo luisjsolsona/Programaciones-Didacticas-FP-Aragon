@@ -68,31 +68,44 @@ const Audit = {
 };
 </script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap');
 
   :root {
-    --navy: #1a2744;
-    --navy-light: #243358;
-    --gold: #c8a84b;
-    --gold-light: #e8c97a;
-    --cream: #f8f6f0;
-    --cream-dark: #efe9da;
-    --text: #2a2a2a;
-    --text-muted: #6b6b6b;
-    --border: #d4cfc4;
+    /* Base institucional: azul tinta + ocre (identidad de la app) */
+    --navy: #15294d;
+    --navy-light: #1f3a6b;
+    --gold: #d4a62a;
+    --gold-light: #e9c65e;
+    /* Acción principal: azul claro y legible */
+    --primary: #1f5fd1;
+    --primary-hover: #174ba8;
+    --primary-soft: #e8f0fd;
+    /* Superficies frías (antes crema) */
+    --cream: #f3f5f8;
+    --cream-dark: #e6eaf0;
+    --text: #1c2433;
+    --text-muted: #5b6475;
+    --border: #d5dbe4;
     --white: #ffffff;
-    --success: #2d6a4f;
-    --danger: #8b1a1a;
-    --locked-bg: #f0f4ff;
-    --locked-border: #b8c8ff;
-    --shadow: 0 2px 16px rgba(26,39,68,0.10);
-    --shadow-lg: 0 8px 40px rgba(26,39,68,0.16);
+    --success: #1b7a4b;
+    --danger: #b42318;
+    /* Campos recomendados por el centro */
+    --locked-bg: #fff8e6;
+    --locked-border: #efd28a;
+    /* Programaciones: propias / solo lectura */
+    --own-bg: #eaf1fd;
+    --own-border: #1f5fd1;
+    --ro-bg: #e3e6eb;
+    --ro-border: #8a93a3;
+    --shadow: 0 1px 3px rgba(21,41,77,.08), 0 4px 14px rgba(21,41,77,.06);
+    --shadow-lg: 0 12px 40px rgba(21,41,77,.18);
+    --radius: 8px;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Source Sans 3', system-ui, sans-serif;
     background: var(--cream);
     color: var(--text);
     min-height: 100vh;
@@ -121,11 +134,11 @@ const Audit = {
     background: var(--gold);
     border-radius: 6px;
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Crimson Pro', serif;
+    font-family: 'Source Serif 4', Georgia, serif;
     font-size: 20px; font-weight: 600; color: var(--navy);
   }
   .app-header .logo-text {
-    font-family: 'Crimson Pro', serif;
+    font-family: 'Source Serif 4', Georgia, serif;
     font-size: 18px; color: var(--white); letter-spacing: 0.02em;
   }
   .app-header .logo-text span { color: var(--gold); }
@@ -135,7 +148,7 @@ const Audit = {
   .btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 8px 16px; border-radius: 6px; border: none;
-    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    font-family: 'Source Sans 3', system-ui, sans-serif; font-size: 13px; font-weight: 500;
     cursor: pointer; transition: all 0.15s ease; text-decoration: none;
   }
   .btn-primary { background: var(--gold); color: var(--navy); }
@@ -170,7 +183,7 @@ const Audit = {
     border-bottom: 1px solid var(--border);
   }
   .sidebar-head h2 {
-    font-family: 'Crimson Pro', serif;
+    font-family: 'Source Serif 4', Georgia, serif;
     font-size: 16px; color: var(--navy); font-weight: 600;
     margin-bottom: 12px;
   }
@@ -215,7 +228,7 @@ const Audit = {
     height: 60vh; text-align: center; gap: 16px;
   }
   .empty-state .icon { font-size: 64px; opacity: 0.3; }
-  .empty-state h2 { font-family: 'Crimson Pro', serif; font-size: 24px; color: var(--navy); }
+  .empty-state h2 { font-family: 'Source Serif 4', Georgia, serif; font-size: 24px; color: var(--navy); }
   .empty-state p { color: var(--text-muted); font-size: 14px; max-width: 300px; }
 
   /* ===== FORM SECTIONS ===== */
@@ -236,7 +249,7 @@ const Audit = {
     cursor: pointer; user-select: none;
   }
   .section-header h3 {
-    font-family: 'Crimson Pro', serif;
+    font-family: 'Source Serif 4', Georgia, serif;
     font-size: 17px; font-weight: 600; color: var(--white);
     display: flex; align-items: center; gap: 10px;
   }
@@ -244,7 +257,7 @@ const Audit = {
     background: var(--gold); color: var(--navy);
     width: 24px; height: 24px; border-radius: 4px;
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700; font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 700; font-family: 'Source Sans 3', system-ui, sans-serif;
   }
   .section-chevron { color: rgba(255,255,255,0.6); font-size: 12px; transition: transform 0.2s; }
   .section-header.collapsed .section-chevron { transform: rotate(-90deg); }
@@ -269,7 +282,7 @@ const Audit = {
   .recommended-extra { background: white; padding: 8px 12px 10px; }
   .recommended-extra input[type="text"] {
     width: 100%; border: 1.5px solid var(--border); border-radius: 6px;
-    padding: 8px 12px; font-size: 13px; font-family: 'DM Sans', sans-serif;
+    padding: 8px 12px; font-size: 13px; font-family: 'Source Sans 3', system-ui, sans-serif;
   }
   .recommended-extra .rich-editor-wrap { margin-top: 4px; }
   .recommended-label {
@@ -284,7 +297,7 @@ const Audit = {
   .field input, .field textarea, .field select {
     width: 100%; padding: 10px 14px;
     border: 1.5px solid var(--border); border-radius: 6px;
-    font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text);
+    font-family: 'Source Sans 3', system-ui, sans-serif; font-size: 14px; color: var(--text);
     background: var(--white); transition: border-color 0.15s;
     resize: vertical;
   }
@@ -318,7 +331,7 @@ const Audit = {
   .cal-ev-table tr:last-child td { border-bottom: none; }
   .cal-ev-table td input, .cal-ev-table td textarea {
     width: 100%; border: none; background: transparent;
-    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); padding: 3px 4px;
+    font-family: 'Source Sans 3', system-ui, sans-serif; font-size: 13px; color: var(--text); padding: 3px 4px;
   }
   .cal-ev-table td input[type=number] { width: 64px; text-align: right; }
   .cal-ev-table td input:focus, .cal-ev-table td textarea:focus {
@@ -331,7 +344,7 @@ const Audit = {
     margin: 8px 0 4px;
   }
   .field-divider-label {
-    font-family: 'Crimson Pro', serif;
+    font-family: 'Source Serif 4', Georgia, serif;
     font-size: 16px; font-weight: 600; color: var(--navy);
     white-space: nowrap;
   }
@@ -372,13 +385,13 @@ const Audit = {
     position: absolute; bottom: -26px; left: 50%; transform: translateX(-50%);
     background: var(--navy); color: white; font-size: 10px; padding: 2px 6px;
     border-radius: 3px; white-space: nowrap; pointer-events: none; z-index: 10;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Source Sans 3', system-ui, sans-serif;
   }
   .rich-toolbar button { position: relative; }
 
   .rich-content {
     padding: 10px 14px; min-height: 100px;
-    font-family: 'DM Sans', sans-serif; font-size: 14px;
+    font-family: 'Source Sans 3', system-ui, sans-serif; font-size: 14px;
     color: var(--text); line-height: 1.6; outline: none;
   }
   .rich-content.tall { min-height: 160px; }
@@ -421,7 +434,7 @@ const Audit = {
   .editable-table tr:nth-child(even) td { background: var(--cream); }
   .editable-table td input, .editable-table td textarea, .editable-table td select {
     width: 100%; border: none; background: transparent;
-    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text);
+    font-family: 'Source Sans 3', system-ui, sans-serif; font-size: 13px; color: var(--text);
     padding: 6px 6px; resize: vertical; min-height: 36px;
   }
   .editable-table td input:focus, .editable-table td textarea:focus {
@@ -449,7 +462,7 @@ const Audit = {
   .ra-badge {
     background: var(--navy); color: var(--gold);
     font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Source Sans 3', system-ui, sans-serif;
   }
   .ra-title { font-size: 13px; font-weight: 500; flex: 1; }
   .ra-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -457,7 +470,7 @@ const Audit = {
   .pct-label { font-size: 12px; color: var(--text-muted); width: 180px; flex-shrink: 0; }
   .pct-input {
     width: 70px; padding: 5px 8px; border: 1.5px solid var(--border);
-    border-radius: 5px; font-family: 'DM Sans', sans-serif; font-size: 13px; text-align: right;
+    border-radius: 5px; font-family: 'Source Sans 3', system-ui, sans-serif; font-size: 13px; text-align: right;
   }
   .pct-symbol { font-size: 13px; color: var(--text-muted); }
   .pct-bar { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
@@ -478,7 +491,7 @@ const Audit = {
     background: var(--navy); padding: 20px 24px;
     display: flex; align-items: center; justify-content: space-between;
   }
-  .modal-head h2 { font-family: 'Crimson Pro', serif; font-size: 20px; color: var(--white); }
+  .modal-head h2 { font-family: 'Source Serif 4', Georgia, serif; font-size: 20px; color: var(--white); }
   .modal-close { background: none; border: none; color: rgba(255,255,255,0.6); font-size: 20px; cursor: pointer; }
   .modal-close:hover { color: white; }
   .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
@@ -523,7 +536,7 @@ const Audit = {
     display: flex; align-items: center; justify-content: space-between;
     flex-shrink: 0; height: 56px;
   }
-  .admin-panel-head h2 { font-family: 'Crimson Pro', serif; font-size: 20px; color: var(--white); }
+  .admin-panel-head h2 { font-family: 'Source Serif 4', Georgia, serif; font-size: 20px; color: var(--white); }
 
   /* Barra de pestañas */
   .admin-tabs {
@@ -536,7 +549,7 @@ const Audit = {
     color: rgba(255,255,255,.55); cursor: pointer; border: none;
     background: none; border-bottom: 3px solid transparent;
     margin-bottom: -2px; transition: all .15s; display: flex; align-items: center; gap: 6px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Source Sans 3', system-ui, sans-serif;
   }
   .admin-tab:hover  { color: rgba(255,255,255,.85); }
   .admin-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
@@ -564,7 +577,7 @@ const Audit = {
   }
   .admin-section-head {
     padding: 12px 18px; background: var(--navy);
-    font-family: 'Crimson Pro', serif; font-size: 16px;
+    font-family: 'Source Serif 4', Georgia, serif; font-size: 16px;
     font-weight: 600; color: white; display: flex; align-items: center; gap: 8px;
   }
   .admin-section-body { padding: 18px; }
@@ -608,7 +621,7 @@ const Audit = {
     margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
   }
   .module-toolbar-left h1 {
-    font-family: 'Crimson Pro', serif;
+    font-family: 'Source Serif 4', Georgia, serif;
     font-size: 26px; color: var(--navy); font-weight: 600;
   }
   .module-toolbar-left .module-meta {
@@ -640,7 +653,7 @@ const Audit = {
     border-top-color: var(--navy); border-radius: 50%; animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text { font-family: 'Crimson Pro', serif; font-size: 18px; color: var(--navy); }
+  .loading-text { font-family: 'Source Serif 4', Georgia, serif; font-size: 18px; color: var(--navy); }
 
   .section-info-box {
     display: flex; gap: 14px; align-items: flex-start;
@@ -686,7 +699,7 @@ const Audit = {
 
   /* Step panels */
   .import-step-panel { padding: 20px 24px; }
-  .import-step-title { font-family: 'Crimson Pro', serif; font-size: 16px; font-weight: 600; color: var(--navy); margin-bottom: 14px; }
+  .import-step-title { font-family: 'Source Serif 4', Georgia, serif; font-size: 16px; font-weight: 600; color: var(--navy); margin-bottom: 14px; }
   .import-step-status { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; min-height: 20px; display:flex;align-items:center;gap:8px }
 
   /* Grid de familias */
@@ -820,7 +833,7 @@ const Audit = {
     padding: 9px 16px; font-size: 13px; cursor: pointer;
     color: var(--text); transition: background 0.1s; white-space: nowrap;
     background: none; border: none; width: 100%; text-align: left;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Source Sans 3', system-ui, sans-serif;
   }
   .data-dropdown-item:hover { background: var(--cream); }
   .data-dropdown-item.danger { color: var(--danger); }
@@ -830,6 +843,93 @@ const Audit = {
     padding: 6px 16px 2px; font-size: 10px; font-weight: 700;
     text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted);
   }
+
+  /* =============================================================
+     REFINADO VISUAL (v1.4)
+     Botones más grandes, tipografía Source Sans/Serif, paleta fría
+     ============================================================= */
+  html { font-size: 15px; }
+  body { font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+  /* Botones */
+  .btn {
+    min-height: 40px; padding: 9px 18px; border-radius: var(--radius);
+    font-size: 14.5px; font-weight: 600; letter-spacing: .005em; gap: 8px;
+    justify-content: center; line-height: 1.2;
+  }
+  .btn-sm { min-height: 36px; padding: 7px 14px; font-size: 14px; }
+  .btn:focus-visible { outline: 3px solid #8fb3f2; outline-offset: 2px; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-ghost { background: var(--white); color: var(--text); border: 1.5px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+  .btn-outline { border-color: rgba(255,255,255,.35); color: #fff; }
+  .btn-outline:hover { background: rgba(255,255,255,.08); border-color: var(--gold); color: var(--gold-light); }
+  .btn-success { background: var(--success); }
+  .btn-danger  { background: var(--danger); }
+  .btn-success:hover, .btn-danger:hover { opacity: 1; filter: brightness(.92); }
+
+  /* Cabecera */
+  .app-header { height: 68px; padding: 0 28px; }
+  .app-header .logo-icon { width: 40px; height: 40px; border-radius: 9px; font-size: 20px; }
+  .app-header .logo-text { font-size: 20px; font-weight: 600; }
+  #headerUserInfo { font-size: 14px !important; color: rgba(255,255,255,.75) !important; }
+
+  /* Barra lateral */
+  .sidebar { width: 300px; min-width: 300px; background: #fbfcfd; }
+  .sidebar-head { padding: 20px 16px 14px; }
+  .sidebar-head h2 { font-size: 19px; margin-bottom: 14px; }
+  .modules-list { padding: 10px; }
+  .module-item {
+    padding: 11px 12px 11px 14px; margin-bottom: 6px; border-radius: var(--radius);
+    border: 1px solid transparent; border-left-width: 4px; align-items: flex-start;
+  }
+  .module-item.is-own      { background: var(--own-bg); border-color: #cfdcf6; border-left-color: var(--own-border); }
+  .module-item.is-own:hover { background: #dde8fb; }
+  .module-item.is-readonly { background: var(--ro-bg); border-color: #cfd3da; border-left-color: var(--ro-border); }
+  .module-item.is-readonly:hover { background: #d8dce2; }
+  .module-item.is-readonly .module-name { color: #3d4553; }
+  .module-item.active { background: var(--navy) !important; border-color: var(--navy) !important; border-left-color: var(--gold) !important; }
+  .module-item.active .module-ciclo, .module-item.active .module-docente { color: rgba(255,255,255,.75); }
+  .module-name { font-size: 15px; font-weight: 600; line-height: 1.3; }
+  .module-ciclo { font-size: 12.5px; color: var(--navy-light); font-weight: 500; margin-top: 2px; }
+  .module-code { font-size: 12.5px; font-family: inherit; color: var(--text-muted); }
+  .module-docente { font-size: 12.5px; color: var(--text-muted); font-style: italic; }
+  .ro-badge {
+    display: inline-block; font-size: 11px; font-weight: 600; color: #4a5260; background: #c9ced6;
+    padding: 1px 7px; border-radius: 10px; margin-left: 4px; vertical-align: 1px; font-style: normal;
+  }
+  .module-item.active .ro-badge { background: rgba(255,255,255,.18); color: #fff; }
+  .module-action-btn, .module-delete-btn { font-size: 16px; padding: 4px 7px; border-radius: 5px; }
+  .module-item:not(.active) .module-action-btn:hover { background: rgba(21,41,77,.08); }
+
+  /* Contenido */
+  .main-content { padding: 32px 36px; }
+  .module-toolbar h1 { font-size: 30px; line-height: 1.2; }
+  .module-meta { font-size: 14px; }
+  .section-header { padding: 16px 24px; }
+  .section-header h3 { font-size: 20px; letter-spacing: .005em; }
+  .form-section { border-radius: 12px; }
+  .field-label { font-size: 15px; font-weight: 600; }
+  .field input, .field textarea, .field select { font-size: 15px; padding: 10px 14px; border-radius: var(--radius); }
+  .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .locked-badge { background: var(--gold); color: var(--navy); font-size: 10.5px; padding: 2px 7px; border-radius: 4px; font-weight: 700; }
+
+  /* Modales y panel admin */
+  .modal { border-radius: 14px; }
+  .modal-head h2 { font-size: 21px; }
+  .admin-tab { font-size: 14.5px; padding: 12px 16px; }
+  .admin-section-head { font-size: 15px; }
+
+  /* Menú Datos */
+  .data-dropdown-item { font-size: 14px; padding: 9px 14px; }
+
+  .ciclo-select { font: inherit; font-size: 14px; padding: 6px 10px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--white); margin-left: 4px; }
+  .rich-toolbar button { min-width: 34px; height: 34px; font-size: 15px; border-radius: 6px; }
+  .module-toolbar .toolbar-actions { gap: 10px; flex-wrap: wrap; }
+  .module-toolbar { gap: 12px; flex-wrap: wrap; }
+  .admin-panel-foot .btn, #adminSaveBtn { min-height: 42px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
@@ -844,9 +944,9 @@ const Audit = {
   z-index:9999;flex-direction:column;gap:0">
   <div style="background:white;border-radius:14px;padding:40px 36px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.4)">
     <div style="text-align:center;margin-bottom:28px">
-      <div style="background:var(--navy);color:var(--gold);font-family:'Crimson Pro',serif;font-size:28px;font-weight:600;
+      <div style="background:var(--navy);color:var(--gold);font-family:'Source Serif 4',Georgia,serif;font-size:28px;font-weight:600;
                   width:60px;height:60px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px">PD</div>
-      <div style="font-family:'Crimson Pro',serif;font-size:20px;color:var(--navy);font-weight:600">Programaciones Didácticas</div>
+      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:20px;color:var(--navy);font-weight:600">Programaciones Didácticas</div>
       <div style="font-size:12px;color:var(--text-muted);margin-top:4px">FP Aragón</div>
     </div>
     <div class="field" style="margin-bottom:14px">
@@ -882,12 +982,9 @@ const Audit = {
       <button class="btn btn-outline btn-sm" onclick="toggleDataMenu(event)">🗄 Datos</button>
       <div class="data-dropdown" id="dataDropdown">
         <div class="data-dropdown-section">
-          <div class="data-dropdown-label">Guardado local</div>
+          <div class="data-dropdown-label">Guardado</div>
           <button class="data-dropdown-item" onclick="ddSaveNow()">
             <span class="dd-icon">💾</span> Guardar ahora
-          </button>
-          <button class="data-dropdown-item danger" onclick="ddClearData()">
-            <span class="dd-icon">🗑</span> Borrar datos guardados
           </button>
         </div>
         <div class="data-dropdown-section">
@@ -1033,7 +1130,7 @@ const Audit = {
 <div class="modal-overlay hidden" id="previewModal" style="align-items:stretch;padding:0">
   <div style="width:100%;height:100%;display:flex;flex-direction:column;background:white">
     <div style="background:var(--navy);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-      <span style="font-family:'Crimson Pro',serif;font-size:18px;color:white">👁 Previsualización del documento</span>
+      <span style="font-family:'Source Serif 4',Georgia,serif;font-size:18px;color:white">👁 Previsualización del documento</span>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary btn-sm" onclick="exportPDF()">📥 Exportar PDF</button>
         <button class="btn btn-success btn-sm" onclick="exportWord()">📄 Exportar Word</button>
@@ -1108,7 +1205,7 @@ const Audit = {
         <input type="text" id="newModuleCycle" placeholder="Ej: Sistemas Microinformáticos y Redes (IFC201)">
       </div>
       <div class="field" id="newModuleCicloIdWrap" style="display:none">
-        <label class="field-label">Perfil de ciclo (permisos y campos bloqueados)</label>
+        <label class="field-label">Perfil de ciclo (permisos y campos recomendados)</label>
         <select id="newModuleCicloId"></select>
       </div>
     </div>
@@ -1154,7 +1251,7 @@ const Audit = {
     <div class="admin-tabs" id="adminTabs">
       <button class="admin-tab active" onclick="adminSwitchTab('users')"    data-tab="users">👨‍🏫 Docentes y seguridad</button>
       <button class="admin-tab"        onclick="adminSwitchTab('profiles')" data-tab="profiles">🔄 Perfiles de ciclo</button>
-      <button class="admin-tab"        onclick="adminSwitchTab('locks')"    data-tab="locks">🔒 Campos bloqueados</button>
+      <button class="admin-tab"        onclick="adminSwitchTab('locks')"    data-tab="locks">⭐ Campos recomendados</button>
       <button class="admin-tab"        onclick="adminSwitchTab('audit')"    data-tab="audit">📜 Auditoría</button>
     </div>
 
@@ -1222,8 +1319,8 @@ const Audit = {
           <div class="admin-section-head">🔄 Perfiles de ciclo formativo</div>
           <div class="admin-section-body">
             <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
-              Cada perfil representa un ciclo formativo. Los campos bloqueados se configuran
-              en la pestaña <strong>🔒 Campos bloqueados</strong>.
+              Cada perfil representa un ciclo formativo. Los campos recomendados se configuran
+              en la pestaña <strong>⭐ Campos recomendados</strong>.
             </p>
             <div id="adminProfilesList" style="margin-bottom:12px">
               <div style="font-size:12px;color:var(--text-muted)">Cargando…</div>
@@ -1280,10 +1377,10 @@ const Audit = {
 
       <div class="admin-tab-panel" id="adminTab-locks">
         <div class="admin-section">
-          <div class="admin-section-head">🎯 Ciclo al que aplican los bloqueos</div>
+          <div class="admin-section-head">🎯 Ciclo al que se aplican los recomendados</div>
           <div class="admin-section-body">
             <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
-              Selecciona el ciclo, activa el 🔒 en cada campo y escribe el valor fijo.
+              Selecciona el ciclo, activa ⭐ en cada campo y escribe el texto recomendado. Los docentes lo verán fijo y podrán añadir su aportación debajo.
               Pulsa <strong>Guardar configuración</strong> para aplicar.
             </p>
             <select id="adminCicloSelect"
@@ -1840,19 +1937,22 @@ function renderModulesList() {
     list.innerHTML = '<p style="padding:16px;font-size:12px;color:var(--text-muted);text-align:center">No hay módulos guardados</p>';
     return;
   }
+  // Propias primero, después las de solo lectura
+  ids.sort((a, b) => (state.modules[a].readOnly ? 1 : 0) - (state.modules[b].readOnly ? 1 : 0));
   list.innerHTML = ids.map(id => {
     const m      = state.modules[id];
     const active = id == state.activeId ? 'active' : '';
-    const roIcon = m.readOnly ? ' 👁' : '';
+    const roIcon = m.readOnly ? ' <span class="ro-badge">solo lectura</span>' : '';
     const ciclo  = m.meta.cicloNombre || m.meta.cycle || '';
     const docente = m.meta.docenteNombre || '';
     const codeCourse = [m.meta.code, m.meta.course].filter(Boolean).join(' · ');
-    return `<div class="module-item ${active}" onclick="selectModule(${id})">
+    const kind = m.readOnly ? 'is-readonly' : 'is-own';
+    return `<div class="module-item ${kind} ${active}" onclick="selectModule(${id})" title="${m.readOnly ? 'Solo lectura (de otro docente)' : 'Tu programación'}">
       <div style="flex:1;min-width:0">
         <div class="module-name">${escHtml(m.meta.name || 'Sin nombre')}${roIcon}</div>
-        ${ciclo   ? `<div class="module-code" style="color:var(--navy);font-weight:500">${escHtml(ciclo)}</div>` : ''}
+        ${ciclo   ? `<div class="module-ciclo">${escHtml(ciclo)}</div>` : ''}
         ${codeCourse ? `<div class="module-code">${escHtml(codeCourse)}</div>` : ''}
-        ${docente ? `<div class="module-code" style="font-style:italic">${escHtml(docente)}</div>` : ''}
+        ${docente ? `<div class="module-docente">${escHtml(docente)}</div>` : ''}
       </div>
       <div class="module-item-actions">
         ${!m.readOnly ? `<button class="module-action-btn" onclick="duplicateModule(event,${id})" title="Duplicar">⎘</button>` : ''}
@@ -2063,7 +2163,7 @@ function renderMainContent() {
       <h1>${escHtml(mod.meta.name) || 'Sin título'}</h1>
       <div class="module-meta">Código: ${escHtml(mod.meta.code) || '—'} · Curso ${escHtml(mod.meta.course) || '—'} · ${escHtml(mod.meta.cycle)}</div>
       ${(!isReadOnly && cicloOptionsForUser().length > 1) ? `<div class="module-meta" style="margin-top:4px">Perfil de ciclo:
-        <select onchange="changeModuleCiclo(this.value)" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:5px">
+        <select onchange="changeModuleCiclo(this.value)" class="ciclo-select">
           ${currentUser?.role === 'admin' ? '<option value="">— Sin ciclo —</option>' : ''}
           ${cicloOptionsForUser().map(c => `<option value="${c.id}" ${c.id === mod.meta.cicloId ? 'selected' : ''}>${escHtml(c.cod)} — ${escHtml(c.nombre)}</option>`).join('')}
         </select></div>` : ''}
@@ -2208,7 +2308,7 @@ function renderField(field, data, forceReadOnly = false) {
       id="field_${field.key}"
       value="${escHtml(computed)}"
       style="background:var(--cream-dark);border:1.5px solid var(--border);border-radius:6px;
-             padding:10px 14px;width:100%;font-family:'DM Sans',sans-serif;font-size:14px;
+             padding:10px 14px;width:100%;font-family:'Source Sans 3',system-ui,sans-serif;font-size:14px;
              color:var(--text-muted);cursor:default;"
       placeholder="${field.placeholder||''}">`;
   } else if (field.type === 'textarea') {
@@ -2420,7 +2520,7 @@ function renderCalEv(field, data, locked) {
     html += `<div class="cal-ev-block">
       <div class="cal-ev-head">
         <input value="${escHtml(block.ev)}" ${locked?'readonly':''}
-          style="background:transparent;border:none;color:white;font-weight:600;font-size:14px;font-family:'DM Sans',sans-serif;width:200px;"
+          style="background:transparent;border:none;color:white;font-weight:600;font-size:14px;font-family:'Source Sans 3',system-ui,sans-serif;width:200px;"
           oninput="calEvUpdateEvName('${field.key}',${bi},this.value)" title="Nombre de la evaluación">
         ${!locked?`<button onclick="calEvRemoveBlock('${field.key}',${bi})"
           style="background:rgba(255,255,255,.15);border:none;color:white;cursor:pointer;border-radius:4px;padding:3px 8px;font-size:12px;">✕ Eliminar</button>`:''}
@@ -2446,7 +2546,7 @@ function renderCalEv(field, data, locked) {
           style="width:58px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:13px;text-align:right;"
           oninput="calEvUpdateCell('${field.key}',${bi},${ri},'pct',this.value)">%</td>
         <td><textarea rows="2" ${locked?'readonly':''}
-          style="width:100%;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:12px;resize:vertical;"
+          style="width:100%;border:none;background:transparent;font-family:'Source Sans 3',system-ui,sans-serif;font-size:12px;resize:vertical;"
           oninput="calEvUpdateCell('${field.key}',${bi},${ri},'instrumentos',this.value)">${escHtml(row.instrumentos||'')}</textarea></td>
         ${!locked?`<td style="text-align:center"><button onclick="calEvRemoveRow('${field.key}',${bi},${ri})"
           style="background:none;border:none;cursor:pointer;color:#bbb;font-size:16px;">✕</button></td>`:''}
@@ -2551,7 +2651,7 @@ function renderRaPctDynamic(field, data, locked) {
     html += `<div class="ra-pct-row" id="rapct_row_${field.key}_${idx}" style="display:flex;align-items:center;gap:10px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;">
       <span class="ra-badge" style="min-width:36px;text-align:center">${escHtml(ra.id)}</span>
       <input type="text" value="${escHtml(ra.id)}"
-        style="width:70px;border:1.5px solid var(--border);border-radius:5px;padding:5px 8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;"
+        style="width:70px;border:1.5px solid var(--border);border-radius:5px;padding:5px 8px;font-family:'Source Sans 3',system-ui,sans-serif;font-size:13px;font-weight:600;"
         placeholder="RA1"
         oninput="updateRaDynId('${field.key}',${idx},this.value)"
         ${locked?'readonly':''}
@@ -3081,7 +3181,7 @@ function renderAdminPanel() {
             </div>
             <div style="display:flex;align-items:center;gap:10px">
               <span style="font-size:11px;color:${isLocked?'var(--navy)':'var(--text-muted)'};font-weight:${isLocked?'600':'400'}"
-                id="lockLabel_${field.key}">${isLocked?'🔒 Bloqueado':'🔓 Libre'}</span>
+                id="lockLabel_${field.key}">${isLocked?'⭐ Recomendado':'Libre'}</span>
               <label class="toggle" onclick="event.stopPropagation()">
                 <input type="checkbox" id="lock_${field.key}" ${isLocked?'checked':''}
                   onchange="adminToggleLock('${field.key}', this.checked)">
@@ -3093,7 +3193,7 @@ function renderAdminPanel() {
             style="padding:10px 14px;background:var(--locked-bg);border-top:1px dashed var(--locked-border)">
             <label style="font-size:11px;font-weight:600;color:var(--navy);text-transform:uppercase;
               letter-spacing:.05em;display:block;margin-bottom:6px">
-              ✏ Texto fijo que verán los usuarios
+              ✏ Texto recomendado que verán los docentes
             </label>
             ${isTA ? `
               <div class="rich-editor-wrap" style="border-color:var(--locked-border)">
@@ -3110,15 +3210,15 @@ function renderAdminPanel() {
                 </div>
                 <div class="rich-content" id="lv_${field.key}" contenteditable="true"
                   data-key="adm_${field.key}" style="min-height:80px"
-                  placeholder="Escribe aquí el texto fijo…"
+                  placeholder="Escribe aquí el texto recomendado…"
                   oninput="rteAdmUpdateToolbar('${field.key}')">${lockedVal}</div>
               </div>
             ` : `<input type="text" id="lv_${field.key}" value="${escHtml(lockedVal)}"
                 style="width:100%;border:1.5px solid var(--locked-border);border-radius:6px;padding:8px 10px;
-                font-family:'DM Sans',sans-serif;font-size:13px;background:white"
-                placeholder="Texto fijo para todos los usuarios…">`}
+                font-family:'Source Sans 3',system-ui,sans-serif;font-size:13px;background:white"
+                placeholder="Texto recomendado para todos los docentes…">`}
             <p style="font-size:11px;color:var(--text-muted);margin-top:5px;font-style:italic">
-              Si lo dejas vacío, el campo aparecerá bloqueado pero en blanco.
+              Si lo dejas vacío, el campo aparecerá como recomendado pero en blanco.
             </p>
           </div>
         </div>`;
@@ -3244,7 +3344,7 @@ async function adminLoadUsersAndProfiles() {
                 <span style="font-size:13px;font-weight:600;color:var(--navy)">${escHtml(p.cod)}</span>
                 <span style="font-size:13px;margin-left:6px">${escHtml(p.nombre)}</span>
                 <span style="font-size:11px;color:${nLocked ? 'var(--navy)' : 'var(--text-muted)'};margin-left:8px;font-weight:${nLocked ? '600' : '400'}">
-                  🔒 ${nLocked} campo${nLocked !== 1 ? 's' : ''} bloqueado${nLocked !== 1 ? 's' : ''}
+                  ⭐ ${nLocked} campo${nLocked !== 1 ? 's' : ''} recomendado${nLocked !== 1 ? 's' : ''}
                 </span>
                 ${nLocked ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;padding-left:2px">${escHtml(lockedNames)}</div>` : ''}
               </div>
@@ -3284,7 +3384,7 @@ async function adminLoadCicloLocks(cicloId) {
         else valEl.innerHTML = f.value || '';
       }
     });
-    if (st) st.textContent = `✔ ${lockedArr.length} campo${lockedArr.length !== 1 ? 's' : ''} bloqueado${lockedArr.length !== 1 ? 's' : ''} en este ciclo`;
+    if (st) st.textContent = `✔ ${lockedArr.length} campo${lockedArr.length !== 1 ? 's' : ''} recomendado${lockedArr.length !== 1 ? 's' : ''} en este ciclo`;
   } catch(e) {
     if (st) st.textContent = 'Error al cargar el perfil: ' + e.message;
   }
@@ -3414,7 +3514,7 @@ async function adminEditProfile(cicloId) {
 }
 
 async function adminDeleteProfile(id, cod) {
-  if (!confirm(`¿Eliminar el perfil "${cod}"? Los campos bloqueados de ese ciclo se perderán.`)) return;
+  if (!confirm(`¿Eliminar el perfil "${cod}"? Los campos recomendados de ese ciclo se perderán.`)) return;
   try {
     await Profiles.delete(id);
     adminLoadUsersAndProfiles();
@@ -3476,9 +3576,9 @@ async function saveAdminConfig() {
     try {
       await Profiles.update(cicloId, { locked_fields });
       await adminLoadUsersAndProfiles();
-      messages.push(`${locked_fields.length} campos bloqueados guardados`);
+      messages.push(`${locked_fields.length} campos recomendados guardados`);
     } catch(e) {
-      showStatus('Error al guardar campos bloqueados: ' + e.message, 'error');
+      showStatus('Error al guardar campos recomendados: ' + e.message, 'error');
       return;
     }
 
@@ -3509,7 +3609,7 @@ function adminToggleLock(fieldKey, checked) {
   const blockHead = document.getElementById('blockhead_' + fieldKey);
   if (valDiv)     valDiv.classList.toggle('hidden', !checked);
   if (label)      {
-    label.textContent   = checked ? '🔒 Bloqueado' : '🔓 Libre';
+    label.textContent   = checked ? '⭐ Recomendado' : 'Libre';
     label.style.color       = checked ? 'var(--navy)'       : 'var(--text-muted)';
     label.style.fontWeight  = checked ? '600'               : '400';
   }
@@ -4428,7 +4528,7 @@ const AUDIT_LABELS = {
   'login.ok': 'Inicio de sesión', 'login.fallido': 'Login fallido', 'login.bloqueado': 'Login bloqueado',
   'usuario.crear': 'Alta docente', 'usuario.editar': 'Edición docente', 'usuario.eliminar': 'Baja docente',
   'usuario.cambiar_password': 'Cambio contraseña',
-  'ciclo.crear': 'Alta ciclo', 'ciclo.editar': 'Edición ciclo', 'ciclo.bloqueos': 'Campos bloqueados', 'ciclo.eliminar': 'Baja ciclo',
+  'ciclo.crear': 'Alta ciclo', 'ciclo.editar': 'Edición ciclo', 'ciclo.bloqueos': 'Campos recomendados', 'ciclo.eliminar': 'Baja ciclo',
   'programacion.crear': 'Nueva programación', 'programacion.papelera': 'A la papelera',
   'programacion.recuperar': 'Recuperada', 'programacion.eliminar_definitiva': 'Eliminada definitiva',
   'programacion.restaurar_version': 'Versión restaurada', 'programacion.cambiar_ciclo': 'Cambio de ciclo',
@@ -4486,7 +4586,7 @@ async function checkAppUpdate() {
     b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--gold);color:var(--navy);' +
       'padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center;font-size:14px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.15)';
     b.innerHTML = '🔄 Hay una versión nueva de la aplicación. Tus cambios ya están guardados.' +
-      '<button class="btn btn-primary btn-sm" style="background:var(--navy);color:white" onclick="location.reload()">Recargar ahora</button>';
+      '<button class="btn btn-primary btn-sm" onclick="location.reload()">Recargar ahora</button>';
     document.body.appendChild(b);
   }
 }
