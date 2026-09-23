@@ -62,6 +62,7 @@ const Modules = {
   versions:       (id)      => apiFetch(`/modules/${id}/versions`),
   restoreVersion: (id, vid) => apiFetch(`/modules/${id}/versions/${vid}/restore`, { method: 'POST' }),
   copyTo:         (id, body)=> apiFetch(`/modules/${id}/copy`, { method: 'POST', body }),
+  setEstado:      (id, estado) => apiFetch(`/modules/${id}/estado`, { method: 'PUT', body: { estado } }),
 };
 
 const Audit = {
@@ -1007,6 +1008,28 @@ const Audit = {
   .cov-miss { color: #a15c00; font-weight: 600; font-size: 13px; }
   @media (max-width: 900px) { .ud-line { grid-template-columns: 1fr; gap: 4px; } }
 
+  /* ── Estado de la programación ── */
+  .estado-badge {
+    display: inline-flex; align-items: center; gap: 3px; margin-top: 5px;
+    font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 11px;
+    letter-spacing: .01em; white-space: nowrap; font-family: 'Source Sans 3', system-ui, sans-serif;
+  }
+  .estado-badge.is-wip  { background: #fff1d6; color: #8a5300; border: 1px solid #f2cf8a; }
+  .estado-badge.is-done { background: #dcf3e6; color: #13623a; border: 1px solid #9fd8b7; }
+  .estado-badge.big { font-size: 13px; padding: 3px 11px; margin: 0 0 0 8px; vertical-align: middle; }
+  .module-item.active .estado-badge.is-wip  { background: #f6c55c; color: #3d2600; border-color: #f6c55c; }
+  .module-item.active .estado-badge.is-done { background: #4cc486; color: #06301b; border-color: #4cc486; }
+  .module-item.is-done-card { border-left-color: var(--success) !important; }
+  .btn-terminar { background: var(--success); color: #fff; }
+  .estado-filter { display: flex; gap: 4px; margin: 0 0 10px; background: var(--cream-dark); padding: 3px; border-radius: 9px; }
+  .ef-btn { flex: 1 1 auto; min-width: 0; border: none; background: none; border-radius: 7px; padding: 6px 4px; cursor: pointer;
+            font: inherit; font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+  .ef-btn b { font-weight: 700; margin-left: 2px; }
+  .ef-btn.on { background: var(--white); color: var(--navy); box-shadow: 0 1px 3px rgba(21,41,77,.15); }
+  .ef-btn.ef-trabajando.on b { color: #a06100; }
+  .ef-btn.ef-terminada.on b  { color: var(--success); }
+  .btn-terminar:hover { filter: brightness(.92); }
+
   /* =============================================================
      RESPONSIVE (tableta y móvil)
      ============================================================= */
@@ -1901,6 +1924,8 @@ async function loadState() {
           cycle:         m.cicloNombre || '',
           cicloNombre:   m.cicloNombre || '',
           docenteNombre: m.docenteNombre || m.username || '',
+          estado:        m.estado || 'trabajando',
+          estadoAt:      m.estado_at || null,
         },
         data: {}
       };
@@ -1929,6 +1954,8 @@ async function loadModuleData(id) {
         cycle:         module.cicloNombre || module.data?.ciclo || '',
         cicloNombre:   module.cicloNombre || '',
         docenteNombre: module.docenteNombre || module.username || '',
+        estado:        module.estado || 'trabajando',
+        estadoAt:      module.estado_at || null,
       },
       data: module.data || {},
       version: module.version ?? null,   // bloqueo optimista
@@ -2128,16 +2155,28 @@ function hideLoading() {
 // ===================================================
 //  SIDEBAR - MÓDULOS
 // ===================================================
+let _estadoFilter = 'todas';   // todas | trabajando | terminada
+function setEstadoFilter(f) { _estadoFilter = f; renderModulesList(); }
+
 function renderModulesList() {
   const list = document.getElementById('modulesList');
-  const ids  = Object.keys(state.modules);
-  if (!ids.length) {
+  const all  = Object.keys(state.modules);
+  if (!all.length) {
     list.innerHTML = '<p style="padding:16px;font-size:12px;color:var(--text-muted);text-align:center">No hay módulos guardados</p>';
     return;
   }
+  // Filtro por estado con contadores
+  const n = { todas: all.length, trabajando: 0, terminada: 0 };
+  all.forEach(id => n[state.modules[id].meta.estado === 'terminada' ? 'terminada' : 'trabajando']++);
+  const ids = all.filter(id => _estadoFilter === 'todas' ||
+    (state.modules[id].meta.estado === 'terminada' ? 'terminada' : 'trabajando') === _estadoFilter);
+  const filterBar = `<div class="estado-filter" role="tablist">
+    ${[['todas', 'Todas'], ['trabajando', 'En curso'], ['terminada', 'Terminadas']].map(([k, l]) =>
+      `<button class="ef-btn ef-${k} ${_estadoFilter === k ? 'on' : ''}" onclick="setEstadoFilter('${k}')">${l} <b>${n[k]}</b></button>`).join('')}
+  </div>`;
   // Propias primero, después las de solo lectura
   ids.sort((a, b) => (state.modules[a].readOnly ? 1 : 0) - (state.modules[b].readOnly ? 1 : 0));
-  list.innerHTML = ids.map(id => {
+  list.innerHTML = filterBar + (ids.length ? '' : '<p class="ud-hint" style="padding:12px;text-align:center">Ninguna programación con este estado.</p>') + ids.map(id => {
     const m      = state.modules[id];
     const active = id == state.activeId ? 'active' : '';
     const roIcon = m.readOnly ? ' <span class="ro-badge">solo lectura</span>' : '';
@@ -2145,9 +2184,10 @@ function renderModulesList() {
     const docente = m.meta.docenteNombre || '';
     const codeCourse = [m.meta.code, m.meta.course].filter(Boolean).join(' · ');
     const kind = m.readOnly ? 'is-readonly' : 'is-own';
-    return `<div class="module-item ${kind} ${active}" onclick="selectModule(${id})" title="${m.readOnly ? 'Solo lectura (de otro docente)' : 'Tu programación'}">
+    return `<div class="module-item ${kind} ${m.meta.estado === 'terminada' ? 'is-done-card' : ''} ${active}" onclick="selectModule(${id})" title="${m.readOnly ? 'Solo lectura (de otro docente)' : 'Tu programación'}">
       <div class="card-body">
         <div class="module-name">${escHtml(m.meta.name || 'Sin nombre')}${roIcon}</div>
+        ${estadoBadge(m.meta.estado)}
         ${ciclo   ? `<div class="module-ciclo">${escHtml(ciclo)}</div>` : ''}
         ${codeCourse ? `<div class="module-code">${escHtml(codeCourse)}</div>` : ''}
         ${docente ? `<div class="module-docente">${escHtml(docente)}</div>` : ''}
@@ -2371,7 +2411,7 @@ function renderMainContent() {
 
   let html = `<div class="module-toolbar">
     <div class="module-toolbar-left">
-      <h1>${escHtml(mod.meta.name) || 'Sin título'}</h1>
+      <h1>${escHtml(mod.meta.name) || 'Sin título'} ${estadoBadge(mod.meta.estado, true)}</h1>
       <div class="module-meta">Código: ${escHtml(mod.meta.code) || '—'} · Curso ${escHtml(mod.meta.course) || '—'} · ${escHtml(mod.meta.cycle)}</div>
       ${(!isReadOnly && cicloOptionsForUser().length > 1) ? `<div class="module-meta" style="margin-top:4px">Perfil de ciclo:
         <select onchange="changeModuleCiclo(this.value)" class="ciclo-select">
@@ -2382,6 +2422,9 @@ function renderMainContent() {
     <div class="toolbar-actions">
       ${isReadOnly ? '' : `<button class="btn btn-outline btn-sm" style="background:var(--navy);color:white" onclick="openPreview()">👁 Previsualizar</button>`}
       ${isReadOnly ? `<button class="btn btn-outline btn-sm" style="background:var(--navy);color:white" onclick="openPreview()">👁 Previsualizar</button>` : ''}
+      ${isReadOnly ? '' : (mod.meta.estado === 'terminada'
+          ? `<button class="btn btn-ghost btn-sm btn-estado" onclick="toggleEstado()" title="Volver a marcarla como en curso">↩ Reabrir</button>`
+          : `<button class="btn btn-sm btn-estado btn-terminar" onclick="toggleEstado()" title="Marcar esta programación como terminada">✔ Marcar terminada</button>`)}
       ${isReadOnly ? '' : `<button class="btn btn-ghost btn-sm" onclick="openHistory()" title="Versiones anteriores">🕘 Historial</button>`}
       ${currentUser?.role === 'admin' ? `<button class="btn btn-ghost btn-sm" onclick="openCopyToTeacher()" title="Crear una copia y asignarla a un docente">👥 Copiar a docente</button>` : ''}
       <button class="btn btn-success btn-sm" onclick="exportWord()">📄 Exportar Word</button>
@@ -5011,6 +5054,28 @@ async function openHistory() {
   }
 }
 
+// ── Estado de trabajo: en curso / terminada ──
+function estadoBadge(estado, big = false) {
+  const done = estado === 'terminada';
+  return `<span class="estado-badge ${done ? 'is-done' : 'is-wip'} ${big ? 'big' : ''}"
+    title="${done ? 'Programación terminada' : 'Programación en curso'}">${done ? '✔ Terminada' : '✎ En curso'}</span>`;
+}
+
+async function toggleEstado() {
+  const id = state.activeId;
+  const mod = state.modules[id];
+  if (!mod || mod.readOnly) return;
+  const nuevo = mod.meta.estado === 'terminada' ? 'trabajando' : 'terminada';
+  try {
+    if (nuevo === 'terminada') await saveState();   // que lo último quede guardado
+    const r = await Modules.setEstado(id, nuevo);
+    mod.meta.estado = r.estado; mod.meta.estadoAt = r.estado_at;
+    renderModulesList();
+    renderMainContent();
+    showStatus(nuevo === 'terminada' ? '✔ Programación marcada como terminada' : '↩ Programación reabierta (en curso)');
+  } catch (e) { showStatus('Error: ' + e.message, 'error'); }
+}
+
 // ── Admin: copiar la programación activa y asignarla a un docente ──
 let _copyUsers = [];
 
@@ -5169,6 +5234,7 @@ const AUDIT_LABELS = {
   'programacion.recuperar': 'Recuperada', 'programacion.eliminar_definitiva': 'Eliminada definitiva',
   'programacion.restaurar_version': 'Versión restaurada', 'programacion.cambiar_ciclo': 'Cambio de ciclo',
   'programacion.copiar_a_docente': 'Copia asignada',
+  'programacion.estado': 'Cambio de estado',
   'backup.exportar': 'Copia exportada', 'backup.restaurar': 'Copia restaurada',
 };
 let _auditLastId = null;

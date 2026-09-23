@@ -55,7 +55,7 @@ router.get('/', requireAuth, (req, res) => {
   if (req.user.role === 'admin') {
     // Admin ve todo
     rows = db.prepare(`
-      SELECT p.id, p.titulo, p.codigo, p.created_at, p.updated_at, p.version,
+      SELECT p.id, p.titulo, p.codigo, p.created_at, p.updated_at, p.version, p.estado, p.estado_at,
              p.user_id, p.ciclo_id,
              u.username, u.nombre AS docenteNombre,
              cp.cod AS cicloCod, cp.nombre AS cicloNombre
@@ -68,7 +68,7 @@ router.get('/', requireAuth, (req, res) => {
   } else {
     // Docente ve las propias + las del mismo ciclo (sin datos, solo metadatos)
     rows = db.prepare(`
-      SELECT p.id, p.titulo, p.codigo, p.created_at, p.updated_at, p.version,
+      SELECT p.id, p.titulo, p.codigo, p.created_at, p.updated_at, p.version, p.estado, p.estado_at,
              p.user_id, p.ciclo_id,
              u.username, u.nombre AS docenteNombre,
              cp.cod AS cicloCod, cp.nombre AS cicloNombre,
@@ -141,6 +141,30 @@ router.post('/', requireAuth, (req, res) => {
   res.status(201).json({
     module: { id: result.lastInsertRowid, titulo, codigo, cicloId: effectiveCicloId }
   });
+});
+
+// =============================================================
+// PUT /api/modules/:id/estado — Cambiar el estado de trabajo
+// Body: { estado: 'trabajando' | 'terminada' }  · propietario o admin
+// No toca version ni updated_at (no interfiere con el guardado)
+// =============================================================
+const ESTADOS = ['trabajando', 'terminada'];
+router.put('/:id/estado', requireAuth, (req, res) => {
+  const moduleId = parseInt(req.params.id);
+  const estado   = String(req.body.estado || '');
+  if (!ESTADOS.includes(estado)) return res.status(400).json({ error: 'Estado no válido.' });
+
+  const row = db.prepare('SELECT id, user_id, titulo, estado FROM programaciones WHERE id = ? AND deleted_at IS NULL').get(moduleId);
+  if (!row) return res.status(404).json({ error: 'Programación no encontrada.' });
+  if (row.user_id !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Solo el propietario o el administrador pueden cambiar el estado.' });
+  }
+  if (row.estado !== estado) {
+    db.prepare(`UPDATE programaciones SET estado = ?, estado_at = datetime('now') WHERE id = ?`).run(estado, moduleId);
+    db.audit(req, 'programacion.estado', 'programacion', moduleId, { titulo: row.titulo, estado });
+  }
+  const r = db.prepare('SELECT estado, estado_at FROM programaciones WHERE id = ?').get(moduleId);
+  res.json({ ok: true, ...r });
 });
 
 // =============================================================
@@ -251,6 +275,8 @@ router.get('/:id', requireAuth, (req, res) => {
       created_at:   row.created_at,
       updated_at:   row.updated_at,
       version:      row.version,
+      estado:       row.estado,
+      estado_at:    row.estado_at,
       data,
       lockedKeys,   // El frontend usa esto para saber qué campos son de solo lectura
       readOnly,     // true si el usuario solo puede ver, no editar

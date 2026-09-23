@@ -105,6 +105,12 @@ if (!db.prepare(`SELECT 1 FROM pragma_table_info('programaciones') WHERE name = 
   db.exec(`ALTER TABLE programaciones ADD COLUMN last_saved_by INTEGER`);
 }
 
+// Estado de trabajo de la programación: 'trabajando' | 'terminada'
+if (!db.prepare(`SELECT 1 FROM pragma_table_info('programaciones') WHERE name = 'estado'`).get()) {
+  db.exec(`ALTER TABLE programaciones ADD COLUMN estado TEXT NOT NULL DEFAULT 'trabajando'`);
+  db.exec(`ALTER TABLE programaciones ADD COLUMN estado_at TEXT`);
+}
+
 // Papelera: borrado lógico de programaciones
 if (!db.prepare(`SELECT 1 FROM pragma_table_info('programaciones') WHERE name = 'deleted_at'`).get()) {
   db.exec(`ALTER TABLE programaciones ADD COLUMN deleted_at TEXT`);
