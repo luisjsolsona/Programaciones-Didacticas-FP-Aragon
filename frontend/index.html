@@ -951,6 +951,58 @@ const Audit = {
   .module-toolbar .toolbar-actions { gap: 10px; flex-wrap: wrap; }
   .module-toolbar { gap: 12px; flex-wrap: wrap; }
   .admin-panel-foot .btn, #adminSaveBtn { min-height: 42px; }
+  /* ── Secuenciación: tarjetas de UD ── */
+  .udseq { display: flex; flex-direction: column; gap: 10px; }
+  .ud-card { border: 1.5px solid var(--border); border-radius: 10px; background: var(--white); padding: 12px 14px; }
+  .ud-card:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .ud-head { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+  .ud-num { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: #fff;
+            display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; margin-top: 4px; }
+  .field .ud-title { flex: 1; min-height: 38px; font-weight: 600; font-size: 15px; resize: none; overflow: hidden; line-height: 1.4; }
+  .field .ud-ev { width: auto; flex: 0 0 auto; padding: 7px 8px; }
+  .ud-tools { display: flex; gap: 4px; flex: 0 0 auto; }
+  .ud-tools button { width: 34px; height: 34px; border-radius: 7px; border: 1px solid var(--border); background: var(--white);
+                     cursor: pointer; font-size: 15px; color: var(--text-muted); }
+  .ud-tools button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+  .ud-tools button:disabled { opacity: .35; cursor: default; }
+  .ud-tools .ud-del:hover:not(:disabled) { border-color: var(--danger); color: #fff; background: var(--danger); }
+  .ud-line { display: grid; grid-template-columns: 170px 1fr; gap: 10px; align-items: start; padding: 6px 0; border-top: 1px dashed var(--border); }
+  .ud-lbl { font-size: 13px; font-weight: 600; color: var(--text-muted); padding-top: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { min-width: 34px; height: 32px; padding: 0 10px; border-radius: 16px; border: 1.5px solid #c5d4ef; background: var(--white);
+          color: var(--navy); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  .chip:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-soft); }
+  .chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .chip:disabled { cursor: default; opacity: .85; }
+  .chip-ce { min-width: 32px; padding: 0 8px; height: 30px; }
+  .chip-unknown { background: #fff4e5 !important; border-color: #f0b35a !important; color: #8a4b00 !important; display: inline-flex; align-items: center; }
+  .ce-wrap { display: flex; flex-direction: column; gap: 6px; }
+  .ce-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ce-ra { font-size: 12.5px; font-weight: 700; color: var(--navy); min-width: 38px; }
+  .ud-mini { font: inherit; font-size: 12px; color: var(--primary); background: none; border: none; cursor: pointer; text-decoration: underline; }
+  .ud-hint { font-size: 12.5px; color: var(--text-muted); font-style: italic; }
+  .ud-note { font-size: 13px; color: var(--text-muted); }
+  .field .ud-cetext { font-size: 13px; padding: 6px 10px; color: var(--text-muted); }
+  .ud-add { align-self: flex-start; }
+  .ud-empty { font-size: 13px; color: var(--text-muted); padding: 8px 0; }
+  /* Cobertura */
+  .ud-cov { border: 1.5px solid #c5d4ef; background: #f6f9ff; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+  .ud-cov-empty { font-size: 13.5px; color: var(--text-muted); }
+  .ud-cov-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; font-size: 15px; color: var(--navy); }
+  .table-scroll { overflow-x: auto; }
+  .cov-table { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--white); }
+  .cov-table th, .cov-table td { padding: 6px 10px; border: 1px solid var(--border); text-align: center; }
+  .cov-table thead th { background: var(--navy); color: #fff; font-weight: 600; }
+  .cov-table tbody th { text-align: left; color: var(--navy); cursor: help; }
+  .cov-table td.cov-on { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+  .cov-bar-cell { min-width: 130px; }
+  .cov-bar-cell span { font-size: 12.5px; color: var(--text-muted); }
+  .cov-bar { height: 8px; background: var(--cream-dark); border-radius: 4px; overflow: hidden; margin-bottom: 2px; }
+  .cov-bar > div { height: 100%; background: var(--success); }
+  .cov-ok { color: var(--success); font-weight: 600; font-size: 13px; }
+  .cov-miss { color: #a15c00; font-weight: 600; font-size: 13px; }
+  @media (max-width: 900px) { .ud-line { grid-template-columns: 1fr; gap: 4px; } }
+
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -1491,16 +1543,17 @@ const FIELD_DEFS = [
     { key: 'orientaciones_pedagogicas', label: 'Orientaciones pedagógicas', type: 'textarea', tall: true,
       placeholder: 'Ej: Este módulo profesional contiene la formación asociada a la función de…' },
     { key: '_divider_secuencia', label: 'Secuenciación: relación Contenidos, Resultados de Aprendizaje y Criterios de evaluación', type: 'divider' },
-    { key: 'ud_ev1_tabla', label: '1ª Evaluación — Unidades didácticas', type: 'table',
+    { key: '_cobertura_ud', label: 'Cobertura de criterios', type: 'ud_coverage' },
+    { key: 'ud_ev1_tabla', label: '1ª Evaluación — Unidades didácticas', type: 'ud_seq',
       columns: ['UD / Contenidos', 'Resultados de Aprendizaje', 'Criterios de Evaluación'],
       rows: [['','RA1','']] },
-    { key: 'ud_ev2_tabla', label: '2ª Evaluación — Unidades didácticas', type: 'table',
+    { key: 'ud_ev2_tabla', label: '2ª Evaluación — Unidades didácticas', type: 'ud_seq',
       columns: ['UD / Contenidos', 'Resultados de Aprendizaje', 'Criterios de Evaluación'],
       rows: [['','RA2','']] },
-    { key: 'ud_ev3_tabla', label: '3ª Evaluación — Unidades didácticas', type: 'table',
+    { key: 'ud_ev3_tabla', label: '3ª Evaluación — Unidades didácticas', type: 'ud_seq',
       columns: ['UD / Contenidos', 'Resultados de Aprendizaje', 'Criterios de Evaluación'],
       rows: [['','RA3','']] },
-    { key: 'ud_empresa_tabla', label: 'Actividades en empresa / FCT / FEOE', type: 'table',
+    { key: 'ud_empresa_tabla', label: 'Actividades en empresa / FCT / FEOE', type: 'ud_seq', evalCol: true,
       columns: ['Evaluación', 'Contenidos / UD', 'Resultados de Aprendizaje', 'Criterios de Evaluación'],
       rows: [['2ª','','RA5','']] },
   ]},
@@ -2321,6 +2374,10 @@ function renderField(field, data, forceReadOnly = false) {
       <span class="field-divider-label">${field.label}</span>
       <div class="field-divider-line"></div>
     </div>`;
+  } else if (field.type === 'ud_coverage') {
+    return `<div id="udCoverage">${renderUdCoverage(data)}</div>`;
+  } else if (field.type === 'ud_seq') {
+    innerHtml = renderUdSeq(field, data, locked);
   } else if (field.type === 'calificacion_ev') {
     innerHtml = renderCalEv(field, data, locked);
   } else if (field.type === 'table') {
@@ -2858,6 +2915,7 @@ function calcPerdidaHoras(horasVal) {
     const data = state.modules[state.activeId].data;
     el.value = computeField('perdida_ec_horas', data);
   }
+  updateField('perdida_ec_horas', computeField('perdida_ec_horas', state.modules[state.activeId].data));
 }
 
 // ===================================================
@@ -3060,10 +3118,11 @@ function buildDocumentHtml(mod, data, target = 'preview') {
   FIELD_DEFS.forEach(sec => {
     body += `<h2 id="${sec.section}">${sec.letter}) ${sec.label.replace(/^[a-z]\)\s*/i,'')}</h2>`;
     sec.fields.forEach(field => {
-      const value = data[field.key];
+      // Campos calculados: siempre el valor actual (no el guardado, que puede estar desfasado)
+      const value = field.type === 'computed' ? computeField(field.key, data) : data[field.key];
       if (!value) return;
 
-      if (field.type === 'table' && Array.isArray(value)) {
+      if ((field.type === 'table' || field.type === 'ud_seq') && Array.isArray(value)) {
         body += `<p><strong>${escHtml(field.label)}</strong></p>`;
         body += `<table><thead><tr>${field.columns.map(c=>`<th>${escHtml(c)}</th>`).join('')}</tr></thead><tbody>`;
         value.forEach(row => {
@@ -3102,8 +3161,26 @@ function buildDocumentHtml(mod, data, target = 'preview') {
   div.WordSection { page: WordSection; }
   body { margin: 0; padding: 0; }
   ` : `
-  body { margin: 2cm; }
-  @media print { @page { margin: 2cm; } body { margin: 0; } h2 { break-before: auto; } }
+  /* Márgenes de página independientes de la opción "Márgenes" del diálogo
+     de impresión: la página no tiene margen y el contenido va dentro de una
+     tabla cuya cabecera/pie (que se repiten en cada hoja) crean el margen
+     superior/inferior; el lateral lo da el relleno de la celda. */
+  @page { size: A4; margin: 0; }
+  body { margin: 0; }
+  table.print-wrap { width: 100%; border-collapse: collapse; margin: 0; font-size: 11pt; }
+  table.print-wrap > thead > tr > td, table.print-wrap > tfoot > tr > td,
+  table.print-wrap > tbody > tr > td { border: none; background: none; padding: 0 2cm; }
+  .pw-space { height: 2cm; }
+  @media screen {
+    body { background: #e9ecf1; }
+    table.print-wrap { max-width: 21cm; margin: 24px auto; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.12); }
+    .pw-space { height: 1.5cm; }
+  }
+  @media print {
+    h2 { break-after: avoid; }
+    h3, p > strong:only-child { break-after: avoid; }
+    tr { break-inside: avoid; }
+  }
   `;
 
   return `<!DOCTYPE html>
@@ -3139,7 +3216,11 @@ ${target === 'word' ? `<!--[if gte mso 9]><xml>
   ${wordPageCss}
 </style>
 </head>
-<body>${target === 'word' ? '<div class="WordSection">' : ''}${body}${target === 'word' ? '</div>' : ''}</body>
+<body>${target === 'word'
+  ? `<div class="WordSection">${body}</div>`
+  : `<table class="print-wrap"><thead><tr><td><div class="pw-space"></div></td></tr></thead>
+     <tfoot><tr><td><div class="pw-space"></div></td></tr></tfoot>
+     <tbody><tr><td>${body}</td></tr></tbody></table>`}</body>
 </html>`;
 }
 
@@ -3187,7 +3268,7 @@ function renderAdminPanel() {
     let html = '';
     FIELD_DEFS.forEach(section => {
       const lockableFields = section.fields.filter(f =>
-        !['table','ra_pct','computed','divider','calificacion_ev','ra_pct_dynamic'].includes(f.type) &&
+        !['table','ud_seq','ud_coverage','ra_pct','computed','divider','calificacion_ev','ra_pct_dynamic'].includes(f.type) &&
         !ADMIN_LOCKABLE_EXCLUDE.has(f.key)
       );
       if (!lockableFields.length) return;
@@ -3582,7 +3663,7 @@ async function saveAdminConfig() {
     adminConfig.lockedValues = {};
     FIELD_DEFS.forEach(section => {
       section.fields.forEach(field => {
-        if (['table','ra_pct','computed','divider','calificacion_ev','ra_pct_dynamic'].includes(field.type)) return;
+        if (['table','ud_seq','ud_coverage','ra_pct','computed','divider','calificacion_ev','ra_pct_dynamic'].includes(field.type)) return;
         if (LOCKABLE_EXCLUDE.has(field.key)) return;
         const lockEl = document.getElementById('lock_' + field.key);
         const valEl  = document.getElementById('lv_'   + field.key);
@@ -4448,6 +4529,308 @@ async function initApp(user) {
   await loadState();
   renderModulesList();
   renderMainContent();
+}
+
+// ===================================================
+//  SECUENCIACIÓN: editor de UD ↔ RA ↔ CE
+//  Las filas se siguen guardando como texto (compatibles con la
+//  exportación y las copias): [UD/contenidos, "RA1, RA2", "CE1.a–e, CE2.b"]
+//  El editor reconoce RA y CE en ese texto y los muestra como fichas.
+// ===================================================
+
+// HTML → texto con saltos de línea en los bloques
+function htmlToLines(html) {
+  const withBreaks = String(html || '').replace(/<\/(p|div|li|h\d|tr)>|<br\s*\/?>/gi, '\n');
+  const div = document.createElement('div');
+  div.appendChild(parseInert(withBreaks));
+  return div.textContent.replace(/\u00a0/g, ' ');
+}
+
+const CE_LETTERS = 'abcdefghijklmnñopqrstuvwxyz';
+const ceLetter = x => /^\d+$/.test(x) ? (CE_LETTERS[parseInt(x) - 1] || x) : x.toLowerCase();
+
+// RA y CE del módulo (apartado b): { ras: [{n, text, ces:[{l, text}]}], byNum }
+function getModuleRaCe(data) {
+  const ras = new Map();
+  const ensure = n => { if (!ras.has(n)) ras.set(n, { n, text: '', ces: [] }); return ras.get(n); };
+  htmlToLines(data.ra_lista).split('\n').forEach(line => {
+    const m = /^\s*RA\s*(\d+)\s*[.:)\-–]?\s*(.*)$/i.exec(line);
+    if (m) { const r = ensure(+m[1]); if (!r.text) r.text = m[2].trim(); }
+  });
+  htmlToLines(data.criterios_evaluacion).split('\n').forEach(line => {
+    let m = /^\s*RA\s*(\d+)\s*[.:)\-–]\s*(.*)$/i.exec(line);
+    if (m) { const r = ensure(+m[1]); if (!r.text) r.text = m[2].trim(); return; }
+    m = /CE\s*(\d+)\s*[._]?\s*([a-zñ]|\d{1,2})\s*\)\s*(.*)/i.exec(line);
+    if (m) {
+      const r = ensure(+m[1]); const l = ceLetter(m[2]);
+      if (!r.ces.some(c => c.l === l)) r.ces.push({ l, text: m[3].trim() });
+    }
+  });
+  const list = [...ras.values()].sort((a, b) => a.n - b.n);
+  return { ras: list, byNum: Object.fromEntries(list.map(r => [r.n, r])) };
+}
+
+// Texto de la columna CE → { ces: Set("1.a"), extra: texto no reconocido }
+// Se analiza por líneas: una línea descriptiva (con palabras además de
+// códigos) se conserva entera como nota y no se trocea.
+function parseCeRefs(text) {
+  const ces = new Set(), notes = [];
+  const ID = '([a-zñ]|\\d{1,2})';
+  const PRE = '(?:CE|RA|C)?\\s*(\\d+)\\s*[._)]?\\s*_?\\s*';
+  const expand = (set, n, a, b) => {
+    const x = CE_LETTERS.indexOf(ceLetter(a)), y = CE_LETTERS.indexOf(ceLetter(b));
+    if (x < 0 || y < 0 || y < x) return false;
+    for (let i = x; i <= y; i++) set.add(`${n}.${CE_LETTERS[i]}`);
+    return true;
+  };
+  String(text || '').split(/\n/).forEach(line => {
+    if (!line.trim()) return;
+    const found = new Set();
+    let rest = line;
+    // "RA2: a), b), c)"  /  "RA4:a), b)"
+    rest = rest.replace(/RA\s*(\d+)\s*:\s*((?:[a-zñ]\)\s*[,;y]?\s*)+)/gi, (all, n, list) => {
+      (list.match(/[a-zñ](?=\))/gi) || []).forEach(l => found.add(`${n}.${l.toLowerCase()}`)); return ' ';
+    });
+    // Rangos: "CE1.a–e", "CE1.A-I", "CE1.a) a CE1.e)", "RA2 a)–k)", "CE5A-B", "CE1.1 – CE1.10"
+    const range = new RegExp(PRE + ID + '\\)?\\s*(?:[-–]|\\sa\\s)\\s*(?:(?:CE|RA)?\\s*\\1\\s*[._)]?\\s*_?\\s*)?' + ID + '\\)?(?![a-zñ0-9])', 'gi');
+    rest = rest.replace(range, (all, n, a, b) => expand(found, n, a, b) ? ' ' : all);
+    // Sueltos: "CE1.A", "CE1_a)", "1a", "CE1 a)", "CE3)_a"
+    const single = new RegExp(PRE + ID + '\\)?(?![a-zñ0-9])', 'gi');
+    rest = rest.replace(single, (all, n, a) => { found.add(`${n}.${ceLetter(a)}`); return ' '; });
+    const words = (rest.match(/[a-záéíóúñü]{3,}/gi) || []).length;
+    if (words >= 2 || !found.size) notes.push(line.trim());   // línea descriptiva: se conserva tal cual
+    else found.forEach(x => ces.add(x));
+  });
+  return { ces, extra: notes.join('\n') };
+}
+
+// Texto de la columna RA → { ras: Set(num), extra }
+function parseRaRefs(text) {
+  const ras = new Set();
+  const rest = String(text || '').replace(/RA\s*(\d+)/gi, (_, n) => { ras.add(+n); return ' '; });
+  const extra = rest.replace(/^[\s,;.\-–y]+|[\s,;.\-–y]+$/g, '').trim();
+  return { ras, extra: /[a-zñ]{3,}/i.test(extra) ? extra : '' };
+}
+
+// Set de CE → "CE1.a–e, CE2.b" (agrupa letras consecutivas)
+function formatCeRefs(ces, extra, raCe) {
+  const byRa = {};
+  ces.forEach(k => { const [n, l] = k.split('.'); (byRa[n] = byRa[n] || []).push(l); });
+  const parts = Object.keys(byRa).sort((a, b) => a - b).map(n => {
+    const order = (raCe.byNum[n]?.ces.map(c => c.l)) || [];
+    const idx = l => { const i = order.indexOf(l); return i >= 0 ? i : 100 + CE_LETTERS.indexOf(l); };
+    const ls = byRa[n].sort((a, b) => idx(a) - idx(b));
+    const out = []; let start = 0;
+    for (let i = 1; i <= ls.length; i++) {
+      if (i < ls.length && idx(ls[i]) === idx(ls[i - 1]) + 1) continue;
+      out.push(i - 1 - start >= 2 ? `CE${n}.${ls[start]}–${ls[i - 1]}` : ls.slice(start, i).map(l => `CE${n}.${l}`).join(', '));
+      start = i;
+    }
+    return out.join(', ');
+  });
+  return [parts.join(', '), extra].filter(Boolean).join('\n');
+}
+const formatRaRefs = (ras, extra) =>
+  [[...ras].sort((a, b) => a - b).map(n => `RA${n}`).join(', '), extra].filter(Boolean).join('\n');
+
+// Columnas de cada tabla
+function udCols(field) {
+  return field.evalCol ? { ev: 0, ud: 1, ra: 2, ce: 3, n: 4 } : { ud: 0, ra: 1, ce: 2, n: 3 };
+}
+function udRows(key) {
+  const data = state.modules[state.activeId].data;
+  const field = FIELD_DEFS.flatMap(s => s.fields).find(f => f.key === key);
+  if (!Array.isArray(data[key]) || !data[key].length) data[key] = JSON.parse(JSON.stringify(field.rows || []));
+  return { data, field, rows: data[key], c: udCols(field) };
+}
+
+function renderUdSeq(field, data, locked) {
+  const rows = (Array.isArray(data[field.key]) && data[field.key].length) ? data[field.key] : (field.rows || []);
+  const raCe = getModuleRaCe(data);
+  const cards = rows.map((row, ri) => renderUdCard(field, row, ri, rows.length, raCe, locked)).join('');
+  return `<div class="udseq" id="udseq_${field.key}">
+    ${cards || '<div class="ud-empty">Sin unidades didácticas.</div>'}
+    ${locked ? '' : `<button class="btn btn-ghost ud-add" onclick="udAdd('${field.key}')">＋ Añadir unidad didáctica</button>`}
+  </div>`;
+}
+
+function renderUdCard(field, row, ri, total, raCe, locked) {
+  const k = field.key, c = udCols(field);
+  const ra = parseRaRefs(row[c.ra]);
+  const ce = parseCeRefs(row[c.ce]);
+  // RA a mostrar en el bloque de CE: los marcados + los que tengan CE marcados
+  const raShown = new Set([...ra.ras, ...[...ce.ces].map(x => +x.split('.')[0])]);
+  const dis = locked ? 'disabled' : '';
+
+  const raChips = raCe.ras.length
+    ? raCe.ras.map(r => `<button type="button" class="chip ${ra.ras.has(r.n) ? 'on' : ''}" ${dis}
+        title="${escHtml(r.text)}" onclick="udToggleRa('${k}',${ri},${r.n})">RA${r.n}</button>`).join('')
+    : '<span class="ud-hint">Añade los RA en el apartado b) para poder seleccionarlos.</span>';
+
+  const ceBlocks = [...raShown].sort((a, b) => a - b).map(n => {
+    const r = raCe.byNum[n];
+    const list = r?.ces || [];
+    const chips = list.map(x => `<button type="button" class="chip chip-ce ${ce.ces.has(`${n}.${x.l}`) ? 'on' : ''}" ${dis}
+        title="CE${n}.${x.l}) ${escHtml(x.text)}" onclick="udToggleCe('${k}',${ri},'${n}.${x.l}')">${x.l}</button>`).join('');
+    const extras = [...ce.ces].filter(x => x.startsWith(n + '.') && !list.some(l => `${n}.${l.l}` === x))
+      .map(x => `<span class="chip chip-ce on chip-unknown" title="No aparece en los criterios del apartado b)">${x.split('.')[1]}?</span>`).join('');
+    const all = list.length && !locked ? `<button type="button" class="ud-mini" onclick="udAllCe('${k}',${ri},${n})">todos</button>` : '';
+    return `<div class="ce-group"><span class="ce-ra">RA${n}</span><div class="chips">${chips}${extras}
+      ${!list.length && !extras ? '<span class="ud-hint">sin CE en el apartado b)</span>' : ''}</div>${all}</div>`;
+  }).join('');
+
+  const evSel = field.evalCol ? `<select class="ud-ev" ${dis} onchange="udSetCell('${k}',${ri},${c.ev},this.value)">
+      ${['', '1ª', '2ª', '3ª'].map(v => `<option ${String(row[c.ev] || '').trim() === v ? 'selected' : ''} value="${v}">${v || 'Evaluación…'}</option>`).join('')}
+    </select>` : '';
+
+  return `<div class="ud-card" id="udcard_${k}_${ri}">
+    <div class="ud-head">
+      <span class="ud-num">${ri + 1}</span>
+      ${evSel}
+      <textarea class="ud-title" rows="1" ${locked ? 'readonly' : ''} placeholder="Unidad didáctica / contenidos…"
+        oninput="autoResize(this)" onchange="udSetCell('${k}',${ri},${c.ud},this.value)">${escHtml(row[c.ud] || '')}</textarea>
+      ${locked ? '' : `<div class="ud-tools">
+        <button type="button" title="Subir" ${ri === 0 ? 'disabled' : ''} onclick="udMove('${k}',${ri},-1)">↑</button>
+        <button type="button" title="Bajar" ${ri === total - 1 ? 'disabled' : ''} onclick="udMove('${k}',${ri},1)">↓</button>
+        <button type="button" title="Eliminar unidad" class="ud-del" onclick="udRemove('${k}',${ri})">✕</button>
+      </div>`}
+    </div>
+    <div class="ud-line"><span class="ud-lbl">Resultados de aprendizaje</span><div class="chips">${raChips}</div></div>
+    ${ra.extra ? `<div class="ud-line"><span class="ud-lbl"></span><span class="ud-note">📝 ${escHtml(ra.extra)}</span></div>` : ''}
+    <div class="ud-line"><span class="ud-lbl">Criterios de evaluación</span>
+      <div class="ce-wrap">${ceBlocks || '<span class="ud-hint">Marca primero uno o varios RA.</span>'}
+        ${ce.extra ? `<span class="ud-note">📝 ${escHtml(ce.extra)}</span>` : ''}</div></div>
+    <div class="ud-line"><span class="ud-lbl">Texto</span>
+      <input class="ud-cetext" ${locked ? 'readonly' : ''} value="${escHtml(String(row[c.ce] || '').replace(/\s*\n+\s*/g, ' · '))}"
+        title="Puedes escribirlo a mano; las fichas se actualizan al salir del campo"
+        onchange="udSetCell('${k}',${ri},${c.ce},this.value.replace(/ · /g,'\\n'), true)"></div>
+  </div>`;
+}
+
+// Refresca una tarjeta y el panel de cobertura
+function udRefresh(key, ri) {
+  const { data, field, rows } = udRows(key);
+  const raCe = getModuleRaCe(data);
+  const el = document.getElementById(`udcard_${key}_${ri}`);
+  if (el) el.outerHTML = renderUdCard(field, rows[ri], ri, rows.length, raCe, false);
+  const t = document.querySelector(`#udcard_${key}_${ri} .ud-title`); if (t) autoResize(t);
+  udRenderCoverage();
+}
+function udRerenderAll(key) {
+  const { data, field } = udRows(key);
+  const el = document.getElementById('udseq_' + key);
+  if (el) el.outerHTML = renderUdSeq(field, data, false);
+  document.querySelectorAll(`#udseq_${key} .ud-title`).forEach(autoResize);
+  udRenderCoverage();
+}
+
+function udSetCell(key, ri, col, value, refresh = false) {
+  if (state.modules[state.activeId]?.readOnly) return;
+  const { rows } = udRows(key);
+  rows[ri][col] = value;
+  saveStateLazy();
+  if (refresh) udRefresh(key, ri);
+}
+function udToggleRa(key, ri, n) {
+  const { data, rows, c } = udRows(key);
+  const ra = parseRaRefs(rows[ri][c.ra]);
+  if (ra.ras.has(n)) {
+    ra.ras.delete(n);
+    // Al quitar un RA se quitan también sus CE
+    const ce = parseCeRefs(rows[ri][c.ce]);
+    [...ce.ces].filter(x => x.startsWith(n + '.')).forEach(x => ce.ces.delete(x));
+    rows[ri][c.ce] = formatCeRefs(ce.ces, ce.extra, getModuleRaCe(data));
+  } else ra.ras.add(n);
+  rows[ri][c.ra] = formatRaRefs(ra.ras, ra.extra);
+  saveStateLazy(); udRefresh(key, ri);
+}
+function udToggleCe(key, ri, id) {
+  const { data, rows, c } = udRows(key);
+  const ce = parseCeRefs(rows[ri][c.ce]);
+  ce.ces.has(id) ? ce.ces.delete(id) : ce.ces.add(id);
+  // Marcar un CE marca también su RA
+  const ra = parseRaRefs(rows[ri][c.ra]); ra.ras.add(+id.split('.')[0]);
+  rows[ri][c.ra] = formatRaRefs(ra.ras, ra.extra);
+  rows[ri][c.ce] = formatCeRefs(ce.ces, ce.extra, getModuleRaCe(data));
+  saveStateLazy(); udRefresh(key, ri);
+}
+function udAllCe(key, ri, n) {
+  const { data, rows, c } = udRows(key);
+  const raCe = getModuleRaCe(data);
+  const ce = parseCeRefs(rows[ri][c.ce]);
+  const ids = (raCe.byNum[n]?.ces || []).map(x => `${n}.${x.l}`);
+  const allOn = ids.every(id => ce.ces.has(id));
+  ids.forEach(id => allOn ? ce.ces.delete(id) : ce.ces.add(id));
+  rows[ri][c.ce] = formatCeRefs(ce.ces, ce.extra, raCe);
+  saveStateLazy(); udRefresh(key, ri);
+}
+function udAdd(key) {
+  const { rows, c } = udRows(key);
+  rows.push(Array(c.n).fill(''));
+  saveStateLazy(); udRerenderAll(key);
+  document.querySelector(`#udcard_${key}_${rows.length - 1} .ud-title`)?.focus();
+}
+function udRemove(key, ri) {
+  const { rows, c } = udRows(key);
+  const name = String(rows[ri][c.ud] || '').split('\n')[0].slice(0, 60) || `unidad ${ri + 1}`;
+  if (!confirm(`¿Eliminar "${name}" de esta evaluación?`)) return;
+  rows.splice(ri, 1);
+  saveStateLazy(); udRerenderAll(key);
+}
+function udMove(key, ri, d) {
+  const { rows } = udRows(key);
+  const j = ri + d; if (j < 0 || j >= rows.length) return;
+  [rows[ri], rows[j]] = [rows[j], rows[ri]];
+  saveStateLazy(); udRerenderAll(key);
+}
+
+// ── Panel de cobertura: qué CE de cada RA se trabajan en cada evaluación ──
+const UD_KEYS = [['ud_ev1_tabla', '1ª ev.'], ['ud_ev2_tabla', '2ª ev.'], ['ud_ev3_tabla', '3ª ev.'], ['ud_empresa_tabla', 'Empresa']];
+
+function renderUdCoverage(data) {
+  const raCe = getModuleRaCe(data);
+  if (!raCe.ras.length) {
+    return `<div class="ud-cov ud-cov-empty">Cuando rellenes los RA y CE del apartado b), aquí verás qué criterios quedan cubiertos por las unidades didácticas.</div>`;
+  }
+  const fields = FIELD_DEFS.flatMap(s => s.fields);
+  const perTable = UD_KEYS.map(([key]) => {
+    const f = fields.find(x => x.key === key); const c = udCols(f);
+    const s = new Set();
+    (Array.isArray(data[key]) ? data[key] : []).forEach(row => parseCeRefs(row?.[c.ce]).ces.forEach(x => s.add(x)));
+    return s;
+  });
+  const all = new Set(perTable.flatMap(s => [...s]));
+  let totCe = 0, totOk = 0;
+  const rowsHtml = raCe.ras.map(r => {
+    const ids = r.ces.map(x => `${r.n}.${x.l}`);
+    const ok = ids.filter(id => all.has(id));
+    totCe += ids.length; totOk += ok.length;
+    const pct = ids.length ? Math.round(ok.length * 100 / ids.length) : 0;
+    const cells = perTable.map(s => {
+      const n = ids.filter(id => s.has(id)).length;
+      return `<td class="${n ? 'cov-on' : ''}">${n ? `${n}` : '·'}</td>`;
+    }).join('');
+    const missing = ids.filter(id => !all.has(id)).map(id => id.split('.')[1]);
+    const status = !ids.length ? '<span class="ud-hint">sin CE</span>'
+      : missing.length ? `<span class="cov-miss" title="Criterios sin asignar a ninguna UD">Faltan: ${missing.join(', ')}</span>`
+      : '<span class="cov-ok">✓ Completo</span>';
+    return `<tr><th title="${escHtml(r.text)}">RA${r.n}</th>${cells}
+      <td class="cov-bar-cell"><div class="cov-bar"><div style="width:${pct}%"></div></div><span>${ok.length}/${ids.length}</span></td>
+      <td>${status}</td></tr>`;
+  }).join('');
+  const pctTot = totCe ? Math.round(totOk * 100 / totCe) : 0;
+  return `<div class="ud-cov">
+    <div class="ud-cov-head"><strong>Cobertura de criterios de evaluación</strong>
+      <span class="${pctTot === 100 ? 'cov-ok' : 'cov-miss'}">${totOk} de ${totCe} CE asignados (${pctTot}%)</span></div>
+    <div class="table-scroll"><table class="cov-table">
+      <thead><tr><th>RA</th>${UD_KEYS.map(([, l]) => `<th>${l}</th>`).join('')}<th>CE cubiertos</th><th></th></tr></thead>
+      <tbody>${rowsHtml}</tbody></table></div>
+    <div class="ud-hint">Las cifras indican cuántos CE de cada RA se trabajan en cada evaluación.</div>
+  </div>`;
+}
+function udRenderCoverage() {
+  const el = document.getElementById('udCoverage');
+  if (el && state.activeId) el.innerHTML = renderUdCoverage(state.modules[state.activeId].data);
 }
 
 // ===================================================
