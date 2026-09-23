@@ -1008,6 +1008,16 @@ const Audit = {
   .cov-miss { color: #a15c00; font-weight: 600; font-size: 13px; }
   @media (max-width: 900px) { .ud-line { grid-template-columns: 1fr; gap: 4px; } }
 
+  /* ── Zona peligrosa ── */
+  .danger-zone { border-color: #f0c8c4 !important; }
+  .danger-zone .admin-section-head { background: #fdecea !important; color: var(--danger) !important; }
+  .reset-opts { display: flex; flex-direction: column; gap: 8px; }
+  .reset-opts label { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; cursor: pointer;
+                      border: 1.5px solid var(--border); border-radius: 8px; background: var(--white); }
+  .reset-opts label:has(input:checked) { border-color: var(--danger); background: #fff5f4; }
+  .reset-opts input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--danger); flex: 0 0 auto; }
+  .reset-opts small { color: var(--text-muted); font-size: 12.5px; }
+
   /* ── Estado de la programación ── */
   .estado-badge {
     display: inline-flex; align-items: center; gap: 3px; margin-top: 5px;
@@ -1528,6 +1538,18 @@ const Audit = {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Zona peligrosa -->
+        <div class="admin-section danger-zone">
+          <div class="admin-section-head">⚠️ Zona peligrosa</div>
+          <div class="admin-section-body">
+            <p style="font-size:13.5px;margin:0 0 10px">
+              Borra de una vez los datos que elijas. Antes se guarda automáticamente una copia completa
+              en el servidor (<code>data/backups/pre-borrado-…</code>), así que se puede deshacer.
+              Tu cuenta de administrador no se borra.</p>
+            <button class="btn btn-danger" onclick="openResetDialog()">🗑 Borrar datos…</button>
           </div>
         </div>
       </div>
@@ -5076,6 +5098,73 @@ async function toggleEstado() {
   } catch (e) { showStatus('Error: ' + e.message, 'error'); }
 }
 
+// ── Admin: borrado masivo con confirmación ──
+const RESET_TEXT = 'BORRAR TODO';
+
+function openResetDialog() {
+  openListModal('⚠️ Borrar datos', `
+    <p style="font-size:14px;margin:0">Marca qué quieres borrar:</p>
+    <div class="reset-opts">
+      <label><input type="checkbox" class="resetOpt" value="programaciones" checked onchange="resetCheck()">
+        <span><strong>Todas las programaciones</strong><br><small>De todos los docentes, incluida la papelera y el historial de versiones.</small></span></label>
+      <label><input type="checkbox" class="resetOpt" value="docentes" onchange="resetCheck()">
+        <span><strong>Todos los docentes</strong><br><small>Sus cuentas y, con ellas, sus programaciones. El administrador se conserva.</small></span></label>
+      <label><input type="checkbox" class="resetOpt" value="ciclos" onchange="resetCheck()">
+        <span><strong>Perfiles de ciclo</strong><br><small>Con sus campos recomendados y las asignaciones de docentes a ciclos.</small></span></label>
+      <label><input type="checkbox" class="resetOpt" value="auditoria" onchange="resetCheck()">
+        <span><strong>Registro de auditoría</strong><br><small>Solo quedará la anotación de este borrado.</small></span></label>
+    </div>
+    <div class="field">
+      <label class="field-label">Escribe <code>${RESET_TEXT}</code> para confirmar</label>
+      <input type="text" id="resetConfirm" autocomplete="off" oninput="resetCheck()" placeholder="${RESET_TEXT}">
+    </div>
+    <div class="field">
+      <label class="field-label">Tu contraseña de administrador</label>
+      <input type="password" id="resetPwd" autocomplete="current-password" oninput="resetCheck()">
+    </div>
+    <div id="resetStatus" style="font-size:13px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="closeListModal()">Cancelar</button>
+      <button class="btn btn-danger" id="resetBtn" disabled onclick="doReset()">🗑 Borrar definitivamente</button>
+    </div>`);
+  setTimeout(() => document.getElementById('resetConfirm')?.focus(), 50);
+}
+
+function resetCheck() {
+  const any = [...document.querySelectorAll('.resetOpt:checked')].length > 0;
+  const ok  = document.getElementById('resetConfirm').value.trim() === RESET_TEXT;
+  const pwd = document.getElementById('resetPwd').value.length > 0;
+  document.getElementById('resetBtn').disabled = !(any && ok && pwd);
+}
+
+async function doReset() {
+  const scope = Object.fromEntries([...document.querySelectorAll('.resetOpt')].map(c => [c.value, c.checked]));
+  const labels = { programaciones: 'todas las programaciones', docentes: 'todos los docentes', ciclos: 'los perfiles de ciclo', auditoria: 'la auditoría' };
+  const what = Object.keys(scope).filter(k => scope[k]).map(k => labels[k]).join(', ');
+  if (!confirm(`Última confirmación:\n\nSe borrarán ${what}.\n\n¿Continuar?`)) return;
+  const btn = document.getElementById('resetBtn'), status = document.getElementById('resetStatus');
+  btn.disabled = true;
+  try {
+    const r = await apiFetch('/admin/reset', { method: 'POST', body: {
+      scope, confirm: document.getElementById('resetConfirm').value.trim(), password: document.getElementById('resetPwd').value,
+    }});
+    clearTimeout(_saveDebounceTimer);
+    state = { activeId: null, modules: {} };
+    await loadState();
+    renderModulesList();
+    renderMainContent();
+    if (document.getElementById('adminPanelOverlay') && !document.getElementById('adminPanelOverlay').classList.contains('hidden')) renderAdminPanel();
+    closeListModal();
+    const c = r.counts;
+    const parts = [['programaciones', 'programaciones'], ['docentes', 'docentes'], ['ciclos', 'ciclos'], ['auditoria', 'registros de auditoría']]
+      .filter(([k]) => c[k] !== undefined).map(([k, l]) => `${c[k]} ${l}`);
+    showStatus(`🗑 Borrado: ${parts.join(', ')}. Copia previa: ${r.backup}`);
+  } catch (e) {
+    status.innerHTML = `<span style="color:var(--danger)">${escHtml(e.message)}</span>`;
+    btn.disabled = false;
+  }
+}
+
 // ── Admin: copiar la programación activa y asignarla a un docente ──
 let _copyUsers = [];
 
@@ -5235,6 +5324,7 @@ const AUDIT_LABELS = {
   'programacion.restaurar_version': 'Versión restaurada', 'programacion.cambiar_ciclo': 'Cambio de ciclo',
   'programacion.copiar_a_docente': 'Copia asignada',
   'programacion.estado': 'Cambio de estado',
+  'admin.borrar_todo': 'Borrado masivo', 'admin.borrado_rechazado': 'Borrado rechazado',
   'backup.exportar': 'Copia exportada', 'backup.restaurar': 'Copia restaurada',
 };
 let _auditLastId = null;
@@ -5249,7 +5339,7 @@ async function adminLoadAudit(more = false) {
     const html = entries.map(e => {
       let detail = e.detail || '';
       try { const o = JSON.parse(detail); detail = Object.entries(o).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' · '); } catch (_) {}
-      const fail = /fallido|bloqueado|eliminar/.test(e.action);
+      const fail = /fallido|bloqueado|eliminar|borra/.test(e.action);
       return `<tr>
         <td style="white-space:nowrap">${fmtDate(e.at)}</td>
         <td>${escHtml(e.username || '—')}</td>

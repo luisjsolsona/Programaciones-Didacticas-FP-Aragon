@@ -33,6 +33,7 @@ const backupRoutes   = require('./routes/backup');
 const cateduRoutes   = require('./routes/catedu');
 const exportRoutes   = require('./routes/export');
 const auditRoutes    = require('./routes/audit');
+const resetRoutes    = require('./routes/reset');
 
 const app  = express();
 
@@ -95,6 +96,9 @@ app.use('/api/export', exportRoutes);
 
 // GET /api/audit — Registro de auditoría (solo admin)
 app.use('/api/audit', auditRoutes);
+
+// POST /api/admin/reset — Borrado masivo con confirmación (solo admin)
+app.use('/api/admin/reset', resetRoutes);
 
 // =============================================================
 // HEALTH CHECK
