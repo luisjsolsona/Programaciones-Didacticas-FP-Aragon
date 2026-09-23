@@ -61,6 +61,7 @@ const Modules = {
   purge:          (id)      => apiFetch(`/modules/${id}/purge`,   { method: 'DELETE' }),
   versions:       (id)      => apiFetch(`/modules/${id}/versions`),
   restoreVersion: (id, vid) => apiFetch(`/modules/${id}/versions/${vid}/restore`, { method: 'POST' }),
+  copyTo:         (id, body)=> apiFetch(`/modules/${id}/copy`, { method: 'POST', body }),
 };
 
 const Audit = {
@@ -2382,6 +2383,7 @@ function renderMainContent() {
       ${isReadOnly ? '' : `<button class="btn btn-outline btn-sm" style="background:var(--navy);color:white" onclick="openPreview()">👁 Previsualizar</button>`}
       ${isReadOnly ? `<button class="btn btn-outline btn-sm" style="background:var(--navy);color:white" onclick="openPreview()">👁 Previsualizar</button>` : ''}
       ${isReadOnly ? '' : `<button class="btn btn-ghost btn-sm" onclick="openHistory()" title="Versiones anteriores">🕘 Historial</button>`}
+      ${currentUser?.role === 'admin' ? `<button class="btn btn-ghost btn-sm" onclick="openCopyToTeacher()" title="Crear una copia y asignarla a un docente">👥 Copiar a docente</button>` : ''}
       <button class="btn btn-success btn-sm" onclick="exportWord()">📄 Exportar Word</button>
       <button class="btn btn-primary btn-sm" onclick="exportPDF()">📥 Exportar PDF</button>
     </div>
@@ -5009,6 +5011,98 @@ async function openHistory() {
   }
 }
 
+// ── Admin: copiar la programación activa y asignarla a un docente ──
+let _copyUsers = [];
+
+async function openCopyToTeacher() {
+  const id = state.activeId;
+  if (!id || currentUser?.role !== 'admin') return;
+  const mod = state.modules[id];
+  openListModal('👥 Copiar a un docente', '<div class="list-empty">Cargando docentes…</div>');
+  try {
+    const [{ users }, { profiles }] = await Promise.all([Users.list(), Profiles.list()]);
+    _copyUsers = users.filter(u => u.role === 'docente' && u.activo);
+    _allProfiles = profiles;
+    if (!_copyUsers.length) {
+      document.getElementById('listModalBody').innerHTML = '<div class="list-empty">No hay docentes activos. Créalos en ⚙ Panel Admin.</div>';
+      return;
+    }
+    document.getElementById('listModalBody').innerHTML = `
+      <p style="font-size:13px;color:var(--text-muted);margin:0">
+        Se crea una <strong>copia independiente</strong> de «${escHtml(mod.meta.name)}» que pasa a ser del docente elegido.
+        La original no cambia y el docente podrá editar su copia.</p>
+      <div class="field">
+        <label class="field-label">Docente</label>
+        <select id="copyUser" onchange="copyUpdateCiclo()">
+          <option value="">Elige un docente…</option>
+          ${_copyUsers.map(u => `<option value="${u.id}">${escHtml(u.nombre || u.username)}${u.ciclos?.length ? ' · ' + u.ciclos.map(c => escHtml(c.cod)).join(', ') : ''}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label">Perfil de ciclo de la copia</label>
+        <select id="copyCiclo">
+          ${profiles.map(p => `<option value="${p.id}" ${p.id === mod.meta.cicloId ? 'selected' : ''}>${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('')}
+          <option value="">— Sin ciclo —</option>
+        </select>
+        <div id="copyCicloHint" class="ud-hint" style="margin-top:4px"></div>
+      </div>
+      <div class="field">
+        <label class="field-label">Título</label>
+        <input type="text" id="copyTitle" value="${escHtml(mod.meta.name || '')}">
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer">
+        <input type="checkbox" id="copySetDocente" checked style="width:18px;height:18px">
+        Poner su nombre en «Nombre del docente»
+      </label>
+      <div id="copyStatus" style="font-size:13px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="closeListModal()">Cancelar</button>
+        <button class="btn btn-primary" id="copyBtn" onclick="doCopyToTeacher(${id})">👥 Crear copia</button>
+      </div>`;
+  } catch (e) {
+    document.getElementById('listModalBody').innerHTML = `<div class="list-empty">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+// Al elegir docente: proponer el ciclo de la original si lo tiene; si no, el suyo
+function copyUpdateCiclo() {
+  const u = _copyUsers.find(x => x.id === parseInt(document.getElementById('copyUser').value));
+  const sel = document.getElementById('copyCiclo'), hint = document.getElementById('copyCicloHint');
+  if (!u) { hint.textContent = ''; return; }
+  const ids = u.cicloIds || [];
+  const orig = state.modules[state.activeId]?.meta.cicloId;
+  sel.value = ids.includes(orig) ? String(orig) : (ids[0] ? String(ids[0]) : (orig ? String(orig) : ''));
+  hint.textContent = ids.length ? '' : '⚠️ Este docente no tiene ciclos asignados.';
+  sel.onchange = () => {
+    const v = parseInt(sel.value);
+    hint.textContent = v && !ids.includes(v) ? '⚠️ El docente no pertenece a este ciclo. Podrá editar la copia, y la verán en solo lectura los docentes de ese ciclo.' : '';
+  };
+}
+
+async function doCopyToTeacher(id) {
+  const userId = parseInt(document.getElementById('copyUser').value);
+  const status = document.getElementById('copyStatus');
+  if (!userId) { status.innerHTML = '<span style="color:var(--danger)">Elige un docente.</span>'; return; }
+  const btn = document.getElementById('copyBtn'); btn.disabled = true;
+  try {
+    const cicloVal = document.getElementById('copyCiclo').value;
+    const r = await Modules.copyTo(id, {
+      userId,
+      cicloId: cicloVal ? parseInt(cicloVal) : null,
+      titulo: document.getElementById('copyTitle').value.trim(),
+      setDocente: document.getElementById('copySetDocente').checked,
+    });
+    const u = _copyUsers.find(x => x.id === userId);
+    await loadState();
+    renderModulesList();
+    closeListModal();
+    showStatus(`✔ Copia asignada a ${u?.nombre || u?.username}` + (r.warning ? ' · ' + r.warning : ''), r.warning ? 'error' : undefined);
+  } catch (e) {
+    status.innerHTML = `<span style="color:var(--danger)">Error: ${escHtml(e.message)}</span>`;
+    btn.disabled = false;
+  }
+}
+
 async function restoreVersion(id, vid, when) {
   if (!confirm(`¿Restaurar la versión del ${when}?\n\nEl contenido actual se guardará en el historial, así que podrás volver a él.`)) return;
   try {
@@ -5074,6 +5168,7 @@ const AUDIT_LABELS = {
   'programacion.crear': 'Nueva programación', 'programacion.papelera': 'A la papelera',
   'programacion.recuperar': 'Recuperada', 'programacion.eliminar_definitiva': 'Eliminada definitiva',
   'programacion.restaurar_version': 'Versión restaurada', 'programacion.cambiar_ciclo': 'Cambio de ciclo',
+  'programacion.copiar_a_docente': 'Copia asignada',
   'backup.exportar': 'Copia exportada', 'backup.restaurar': 'Copia restaurada',
 };
 let _auditLastId = null;
