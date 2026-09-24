@@ -1,6 +1,6 @@
 {
   "name": "programaciones-fp-backend",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "API REST para Programaciones Didácticas FP Aragón",
   "main": "server.js",
   "scripts": {

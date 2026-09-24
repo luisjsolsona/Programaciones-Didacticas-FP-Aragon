@@ -1008,6 +1008,49 @@ const Audit = {
   .cov-miss { color: #a15c00; font-weight: 600; font-size: 13px; }
   @media (max-width: 900px) { .ud-line { grid-template-columns: 1fr; gap: 4px; } }
 
+  /* ── Programaciones por docente ── */
+  .seg-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .seg-toolbar input, .seg-toolbar select {
+    font: inherit; font-size: 14px; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--white);
+  }
+  .seg-toolbar input { flex: 1 1 240px; }
+  .seg-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .seg-kpi { flex: 1 1 110px; background: var(--white); border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 12px; }
+  .seg-kpi b { display: block; font-size: 22px; color: var(--navy); line-height: 1.1; }
+  .seg-kpi span { font-size: 12.5px; color: var(--text-muted); }
+  .seg-kpi.ok b { color: var(--success); } .seg-kpi.wip b { color: #a06100; } .seg-kpi.warn { border-color: #f0c8c4; } .seg-kpi.warn b { color: var(--danger); }
+  .seg-teacher { border: 1.5px solid var(--border); border-radius: 10px; background: var(--white); margin-bottom: 8px; overflow: hidden; }
+  .seg-head { width: 100%; display: flex; align-items: center; gap: 10px; padding: 11px 14px; background: none; border: none;
+              cursor: pointer; font: inherit; text-align: left; }
+  .seg-head:hover { background: var(--primary-soft); }
+  .seg-caret { transition: transform .15s; color: var(--text-muted); flex: 0 0 auto; }
+  .seg-teacher.open .seg-caret { transform: rotate(90deg); }
+  .seg-name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 15px; color: var(--navy); }
+  .seg-ciclos { margin-left: 4px; }
+  .seg-count { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+  .seg-progress { flex: 0 0 120px; display: flex; align-items: center; gap: 6px; }
+  .seg-progress .cov-bar { flex: 1; margin: 0; }
+  .seg-progress .cov-bar > span { display: block; height: 100%; background: var(--success); }
+  .seg-progress small { font-size: 12px; color: var(--text-muted); }
+  .seg-body { display: none; padding: 0 14px 12px; }
+  .seg-teacher.open .seg-body { display: block; }
+  .seg-table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+  .seg-table th:nth-child(2) { width: 95px; } .seg-table th:nth-child(3) { width: 85px; }
+  .seg-table th:nth-child(4) { width: 130px; } .seg-table th:nth-child(5) { width: 110px; }
+  .seg-table td:first-child { overflow-wrap: anywhere; }
+  .seg-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted);
+                  padding: 6px 8px; border-bottom: 1.5px solid var(--border); }
+  .seg-table td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .seg-table tr:last-child td { border-bottom: none; }
+  .seg-table a { color: var(--primary); font-weight: 600; text-decoration: none; }
+  .seg-table a:hover { text-decoration: underline; }
+  .seg-table .estado-badge { margin: 0; }
+  @media (max-width: 900px) {
+    .seg-head { flex-wrap: wrap; }
+    .seg-progress { flex: 1 1 100%; }
+    .seg-table { min-width: 560px; }
+  }
+
   /* ── Zona peligrosa ── */
   .danger-zone { border-color: #f0c8c4 !important; }
   .danger-zone .admin-section-head { background: #fdecea !important; color: var(--danger) !important; }
@@ -1479,6 +1522,7 @@ const Audit = {
     <!-- Pestañas -->
     <div class="admin-tabs" id="adminTabs">
       <button class="admin-tab active" onclick="adminSwitchTab('users')"    data-tab="users">👨‍🏫 Docentes y seguridad</button>
+      <button class="admin-tab"        onclick="adminSwitchTab('byteacher')" data-tab="byteacher">📊 Programaciones por docente</button>
       <button class="admin-tab"        onclick="adminSwitchTab('profiles')" data-tab="profiles">🔄 Perfiles de ciclo</button>
       <button class="admin-tab"        onclick="adminSwitchTab('locks')"    data-tab="locks">⭐ Campos recomendados</button>
       <button class="admin-tab"        onclick="adminSwitchTab('audit')"    data-tab="audit">📜 Auditoría</button>
@@ -1592,6 +1636,21 @@ const Audit = {
       </div>
 
       <!-- ── PESTAÑA 3: Campos bloqueados ── -->
+      <div class="admin-tab-panel" id="adminTab-byteacher">
+        <div class="seg-toolbar">
+          <input type="search" id="segSearch" placeholder="Buscar docente o programación…" oninput="renderByTeacher()">
+          <select id="segCiclo" onchange="renderByTeacher()"><option value="">Todos los ciclos</option></select>
+          <select id="segEstado" onchange="renderByTeacher()">
+            <option value="">Todos los estados</option>
+            <option value="trabajando">En curso</option>
+            <option value="terminada">Terminadas</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="exportByTeacherCsv()" title="Descargar la tabla en CSV (Excel)">⤓ CSV</button>
+        </div>
+        <div id="segSummary" class="seg-summary"></div>
+        <div id="segList"><div class="list-empty">Cargando…</div></div>
+      </div>
+
       <div class="admin-tab-panel" id="adminTab-audit">
         <div class="admin-section">
           <div class="admin-section-head">📜 Registro de actividad</div>
@@ -3545,6 +3604,7 @@ function adminSwitchTab(tab) {
     panel.classList.toggle('active', panel.id === `adminTab-${tab}`);
   });
   if (tab === 'audit') adminLoadAudit();
+  if (tab === 'byteacher') loadByTeacher();
 }
 
 // ── Helpers del panel admin ────────────────────────────────
@@ -5096,6 +5156,137 @@ async function toggleEstado() {
     renderMainContent();
     showStatus(nuevo === 'terminada' ? '✔ Programación marcada como terminada' : '↩ Programación reabierta (en curso)');
   } catch (e) { showStatus('Error: ' + e.message, 'error'); }
+}
+
+// ── Admin: programaciones agrupadas por docente ──
+let _seg = { users: [], modules: [], profiles: [], open: new Set() };
+
+async function loadByTeacher() {
+  document.getElementById('segList').innerHTML = '<div class="list-empty">Cargando…</div>';
+  try {
+    const [{ users }, { modules }, { profiles }] = await Promise.all([Users.list(), Modules.list(), Profiles.list()]);
+    _seg.users = users; _seg.modules = modules; _seg.profiles = profiles;
+    const sel = document.getElementById('segCiclo'), cur = sel.value;
+    sel.innerHTML = '<option value="">Todos los ciclos</option>' +
+      profiles.map(p => `<option value="${p.id}">${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('') +
+      '<option value="none">Sin ciclo</option>';
+    sel.value = cur;
+    renderByTeacher();
+  } catch (e) {
+    document.getElementById('segList').innerHTML = `<div class="list-empty">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+// Programaciones que pasan los filtros, agrupadas por docente
+function byTeacherGroups() {
+  const q      = (document.getElementById('segSearch')?.value || '').trim().toLowerCase();
+  const ciclo  = document.getElementById('segCiclo')?.value || '';
+  const estado = document.getElementById('segEstado')?.value || '';
+  const okMod = m =>
+    (!ciclo || (ciclo === 'none' ? !m.ciclo_id : String(m.ciclo_id) === ciclo)) &&
+    (!estado || (m.estado || 'trabajando') === estado);
+  return _seg.users
+    .filter(u => u.activo || _seg.modules.some(m => m.user_id === u.id))
+    .map(u => {
+      const all  = _seg.modules.filter(m => m.user_id === u.id);
+      const name = u.nombre || u.username;
+      const userHit = !q || name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q);
+      const mods = all.filter(okMod).filter(m => userHit || (m.titulo || '').toLowerCase().includes(q) || (m.codigo || '').toLowerCase().includes(q));
+      // Con filtro de ciclo, mostrar también a los docentes de ese ciclo aunque no tengan programaciones
+      const inCiclo = ciclo && ciclo !== 'none' && (u.cicloIds || []).includes(parseInt(ciclo));
+      const visible = mods.length || (userHit && !estado && (!ciclo || inCiclo));
+      return { u, name, all, mods, visible };
+    })
+    .filter(g => g.visible)
+    .sort((a, b) => (a.u.role === 'admin') - (b.u.role === 'admin') || a.name.localeCompare(b.name, 'es'));
+}
+
+function relTime(s) {
+  if (!s) return '—';
+  const d = new Date(s.replace(' ', 'T') + 'Z'), days = Math.floor((Date.now() - d) / 86400000);
+  if (days < 1) return 'hoy';
+  if (days === 1) return 'ayer';
+  if (days < 30) return `hace ${days} días`;
+  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function renderByTeacher() {
+  const groups = byTeacherGroups();
+  const mods = groups.flatMap(g => g.mods);
+  const done = mods.filter(m => m.estado === 'terminada').length;
+  const sinProg = groups.filter(g => g.u.role !== 'admin' && !g.all.length).length;
+  document.getElementById('segSummary').innerHTML = `
+    <div class="seg-kpi"><b>${groups.filter(g => g.u.role !== 'admin').length}</b><span>docentes</span></div>
+    <div class="seg-kpi"><b>${mods.length}</b><span>programaciones</span></div>
+    <div class="seg-kpi ok"><b>${done}</b><span>terminadas</span></div>
+    <div class="seg-kpi wip"><b>${mods.length - done}</b><span>en curso</span></div>
+    ${sinProg ? `<div class="seg-kpi warn"><b>${sinProg}</b><span>sin programaciones</span></div>` : ''}`;
+
+  if (!groups.length) {
+    document.getElementById('segList').innerHTML = '<div class="list-empty">Nada coincide con los filtros.</div>';
+    return;
+  }
+  document.getElementById('segList').innerHTML = groups.map(g => {
+    const n = g.all.length, t = g.all.filter(m => m.estado === 'terminada').length;
+    const pct = n ? Math.round(t * 100 / n) : 0;
+    const open = _seg.open.has(g.u.id) || !!(document.getElementById('segSearch')?.value.trim());
+    const ciclos = (g.u.ciclos || []).map(c => `<span class="tag-mini">${escHtml(c.cod)}</span>`).join('');
+    const rows = g.mods.map(m => `
+      <tr>
+        <td><a href="#" onclick="openFromAdmin(${m.id});return false" title="Abrir">${escHtml(m.titulo || 'Sin título')}</a></td>
+        <td>${escHtml(m.codigo || '')}</td>
+        <td>${escHtml(m.cicloCod || '—')}</td>
+        <td>${estadoBadge(m.estado)}</td>
+        <td title="${escHtml(fmtDate(m.updated_at))}">${relTime(m.updated_at)}</td>
+      </tr>`).join('');
+    return `<div class="seg-teacher ${open ? 'open' : ''}" id="seg_${g.u.id}">
+      <button class="seg-head" onclick="toggleSegTeacher(${g.u.id})">
+        <span class="seg-caret">▸</span>
+        <span class="seg-name">${escHtml(g.name)}${g.u.role === 'admin' ? ' <span class="tag-mini">admin</span>' : ''}${!g.u.activo ? ' <span class="tag-mini">inactivo</span>' : ''}
+          <span class="seg-ciclos">${ciclos}</span></span>
+        <span class="seg-count">${n ? `${n} programación${n !== 1 ? 'es' : ''}` : '<span class="cov-miss">Sin programaciones</span>'}</span>
+        ${n ? `<span class="seg-progress" title="${t} de ${n} terminadas"><span class="cov-bar"><span style="width:${pct}%"></span></span><small>${t}/${n}</small></span>` : '<span class="seg-progress"></span>'}
+      </button>
+      <div class="seg-body">
+        ${g.mods.length ? `<div class="table-scroll"><table class="seg-table">
+          <thead><tr><th>Programación</th><th>Código</th><th>Ciclo</th><th>Estado</th><th>Modificada</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>`
+          : '<div class="ud-hint" style="padding:8px 4px">No tiene programaciones con estos filtros.</div>'}
+      </div>
+    </div>`;
+  }).join('') + `<div style="text-align:right;margin-top:8px">
+      <button class="btn btn-ghost btn-sm" onclick="segExpandAll(true)">Desplegar todo</button>
+      <button class="btn btn-ghost btn-sm" onclick="segExpandAll(false)">Plegar todo</button></div>`;
+}
+
+function toggleSegTeacher(id) {
+  _seg.open.has(id) ? _seg.open.delete(id) : _seg.open.add(id);
+  document.getElementById('seg_' + id)?.classList.toggle('open');
+}
+function segExpandAll(open) {
+  _seg.open = new Set(open ? _seg.users.map(u => u.id) : []);
+  renderByTeacher();
+}
+
+async function openFromAdmin(id) {
+  closeAdminPanel();
+  if (!state.modules[id]) { await loadState(); renderModulesList(); }
+  selectModule(id);
+}
+
+function exportByTeacherCsv() {
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [['Docente', 'Usuario', 'Programación', 'Código', 'Ciclo', 'Estado', 'Última modificación'].map(q).join(';')];
+  byTeacherGroups().forEach(g => {
+    if (!g.mods.length) lines.push([g.name, g.u.username, '(sin programaciones)', '', '', '', ''].map(q).join(';'));
+    g.mods.forEach(m => lines.push([g.name, g.u.username, m.titulo, m.codigo, m.cicloCod || '',
+      m.estado === 'terminada' ? 'Terminada' : 'En curso', fmtDate(m.updated_at)].map(q).join(';')));
+  });
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `programaciones_por_docente_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
 }
 
 // ── Admin: borrado masivo con confirmación ──
