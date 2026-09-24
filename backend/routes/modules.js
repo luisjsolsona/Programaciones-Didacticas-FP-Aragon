@@ -168,6 +168,67 @@ router.put('/:id/estado', requireAuth, (req, res) => {
 });
 
 // =============================================================
+// PUT /api/modules/:id/owner — Reasignar una programación a otro docente (solo admin)
+// Body: { userId, cicloId?, setDocente? }
+//   No crea copia: la programación cambia de propietario (conserva historial,
+//   estado y versión). El anterior propietario deja de poder editarla.
+//   cicloId    → si se indica, cambia el ciclo; si no, se mantiene
+//   setDocente → true (defecto): pone el nombre del nuevo docente en "Nombre del docente"
+// =============================================================
+router.put('/:id/owner', requireAuth, (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Solo el administrador puede reasignar programaciones.' });
+  }
+  const moduleId = parseInt(req.params.id);
+  const row = db.prepare('SELECT * FROM programaciones WHERE id = ? AND deleted_at IS NULL').get(moduleId);
+  if (!row) return res.status(404).json({ error: 'Programación no encontrada.' });
+
+  const userId = parseInt(req.body.userId);
+  const target = db.prepare('SELECT id, username, nombre, activo FROM users WHERE id = ?').get(userId);
+  if (!target) return res.status(400).json({ error: 'El docente indicado no existe.' });
+  if (!target.activo) return res.status(400).json({ error: 'El docente está desactivado.' });
+  if (userId === row.user_id) return res.status(400).json({ error: 'La programación ya es de ese docente.' });
+
+  let cicloId = row.ciclo_id;
+  if (req.body.cicloId !== undefined) {
+    cicloId = req.body.cicloId === null || req.body.cicloId === '' ? null : Number(req.body.cicloId);
+    if (cicloId && !db.prepare('SELECT 1 FROM ciclo_profiles WHERE id = ?').get(cicloId)) {
+      return res.status(400).json({ error: 'El ciclo indicado no existe.' });
+    }
+  }
+
+  const prev = db.prepare('SELECT username, nombre FROM users WHERE id = ?').get(row.user_id);
+  const data = JSON.parse(row.data || '{}');
+  if (req.body.setDocente !== false) data.docente = target.nombre || target.username;
+  const finalData = cicloId !== row.ciclo_id ? { ...data, ...getLockedFields(cicloId) } : data;
+  const newJson = JSON.stringify(finalData);
+
+  db.transaction(() => {
+    // Historial: estado anterior, por si hay que deshacer
+    db.snapshot(row, req.user.id, 'antes-de-reasignar');
+    db.prepare(`
+      UPDATE programaciones
+      SET user_id = ?, ciclo_id = ?, data = ?, last_saved_by = ?,
+          version = version + 1, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(userId, cicloId, newJson, req.user.id, moduleId);
+  })();
+
+  db.audit(req, 'programacion.reasignar', 'programacion', moduleId, {
+    titulo: row.titulo, de: prev?.username || row.user_id, a: target.username,
+    ...(cicloId !== row.ciclo_id ? { ciclo_id: cicloId } : {}),
+  });
+
+  const targetCiclos = db.prepare('SELECT ciclo_id FROM user_ciclos WHERE user_id = ?').all(userId).map(r => r.ciclo_id);
+  res.json({
+    ok: true,
+    warning: cicloId && !targetCiclos.includes(cicloId)
+      ? 'El docente no pertenece al ciclo de esta programación. Podrá editarla igualmente.'
+      : null,
+  });
+});
+
+// =============================================================
 // POST /api/modules/:id/copy — Copiar una programación a un docente (solo admin)
 // Body: { userId, cicloId?, titulo?, setDocente? }
 //   userId     → docente que recibe la copia (será su propietario)

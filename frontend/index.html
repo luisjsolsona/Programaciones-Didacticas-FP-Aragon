@@ -62,6 +62,7 @@ const Modules = {
   versions:       (id)      => apiFetch(`/modules/${id}/versions`),
   restoreVersion: (id, vid) => apiFetch(`/modules/${id}/versions/${vid}/restore`, { method: 'POST' }),
   copyTo:         (id, body)=> apiFetch(`/modules/${id}/copy`, { method: 'POST', body }),
+  reassign:       (id, body)=> apiFetch(`/modules/${id}/owner`, { method: 'PUT', body }),
   setEstado:      (id, estado) => apiFetch(`/modules/${id}/estado`, { method: 'PUT', body: { estado } }),
 };
 
@@ -1036,7 +1037,9 @@ const Audit = {
   .seg-teacher.open .seg-body { display: block; }
   .seg-table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
   .seg-table th:nth-child(2) { width: 95px; } .seg-table th:nth-child(3) { width: 85px; }
-  .seg-table th:nth-child(4) { width: 130px; } .seg-table th:nth-child(5) { width: 110px; }
+  .seg-table th:nth-child(4) { width: 130px; } .seg-table th:nth-child(5) { width: 110px; } .seg-table th:nth-child(6) { width: 48px; }
+  .seg-act { width: 34px; height: 32px; border-radius: 7px; border: 1px solid var(--border); background: var(--white); cursor: pointer; font-size: 15px; }
+  .seg-act:hover { border-color: var(--primary); background: var(--primary-soft); }
   .seg-table td:first-child { overflow-wrap: anywhere; }
   .seg-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted);
                   padding: 6px 8px; border-bottom: 1.5px solid var(--border); }
@@ -2010,6 +2013,7 @@ async function loadState() {
           code:          m.codigo,
           cicloId:       m.ciclo_id || null,
           cicloCod:      m.cicloCod || '',
+          userId:        m.user_id,
           course:        '',
           cycle:         m.cicloNombre || '',
           cicloNombre:   m.cicloNombre || '',
@@ -2040,6 +2044,7 @@ async function loadModuleData(id) {
         code:          module.codigo,
         cicloId:       module.cicloId || null,
         cicloCod:      module.cicloCod || '',
+        userId:        module.userId,
         course:        module.data?.curso || '',
         cycle:         module.cicloNombre || module.data?.ciclo || '',
         cicloNombre:   module.cicloNombre || '',
@@ -2516,7 +2521,8 @@ function renderMainContent() {
           ? `<button class="btn btn-ghost btn-sm btn-estado" onclick="toggleEstado()" title="Volver a marcarla como en curso">↩ Reabrir</button>`
           : `<button class="btn btn-sm btn-estado btn-terminar" onclick="toggleEstado()" title="Marcar esta programación como terminada">✔ Marcar terminada</button>`)}
       ${isReadOnly ? '' : `<button class="btn btn-ghost btn-sm" onclick="openHistory()" title="Versiones anteriores">🕘 Historial</button>`}
-      ${currentUser?.role === 'admin' ? `<button class="btn btn-ghost btn-sm" onclick="openCopyToTeacher()" title="Crear una copia y asignarla a un docente">👥 Copiar a docente</button>` : ''}
+      ${currentUser?.role === 'admin' ? `<button class="btn btn-ghost btn-sm" onclick="openCopyToTeacher('move')" title="Pasar esta programación a otro docente (sin copiarla)">🔁 Reasignar</button>
+      <button class="btn btn-ghost btn-sm" onclick="openCopyToTeacher('copy')" title="Crear una copia y asignarla a un docente">👥 Copiar a docente</button>` : ''}
       <button class="btn btn-success btn-sm" onclick="exportWord()">📄 Exportar Word</button>
       <button class="btn btn-primary btn-sm" onclick="exportPDF()">📥 Exportar PDF</button>
     </div>
@@ -5152,7 +5158,7 @@ function fmtDate(s) {
   return d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-const VERSION_REASON = { 'auto': '', 'antes-de-restaurar': 'antes de restaurar' };
+const VERSION_REASON = { 'auto': '', 'antes-de-restaurar': 'antes de restaurar', 'antes-de-reasignar': 'antes de reasignar' };
 
 async function openHistory() {
   const id = state.activeId;
@@ -5282,6 +5288,8 @@ function renderByTeacher() {
         <td>${escHtml(m.cicloCod || '—')}</td>
         <td>${estadoBadge(m.estado)}</td>
         <td title="${escHtml(fmtDate(m.updated_at))}">${relTime(m.updated_at)}</td>
+        <td><button class="seg-act" title="Reasignar a otro docente"
+          onclick="openCopyToTeacher('move', ${m.id}, { name: ${escHtml(JSON.stringify(m.titulo || ''))}, userId: ${m.user_id}, cicloId: ${m.ciclo_id ?? 'null'} }, loadByTeacher)">🔁</button></td>
       </tr>`).join('');
     return `<div class="seg-teacher ${open ? 'open' : ''}" id="seg_${g.u.id}">
       <button class="seg-head" onclick="toggleSegTeacher(${g.u.id})">
@@ -5293,7 +5301,7 @@ function renderByTeacher() {
       </button>
       <div class="seg-body">
         ${g.mods.length ? `<div class="table-scroll"><table class="seg-table">
-          <thead><tr><th>Programación</th><th>Código</th><th>Ciclo</th><th>Estado</th><th>Modificada</th></tr></thead>
+          <thead><tr><th>Programación</th><th>Código</th><th>Ciclo</th><th>Estado</th><th>Modificada</th><th></th></tr></thead>
           <tbody>${rows}</tbody></table></div>`
           : '<div class="ud-hint" style="padding:8px 4px">No tiene programaciones con estos filtros.</div>'}
       </div>
@@ -5402,43 +5410,50 @@ async function doReset() {
 
 // ── Admin: copiar la programación activa y asignarla a un docente ──
 let _copyUsers = [];
+let _copyCtx = { id: null, mode: 'copy', cicloId: null, onDone: null };
 
-async function openCopyToTeacher() {
-  const id = state.activeId;
+// mode: 'copy' (crea una copia para el docente) | 'move' (le pasa la original)
+async function openCopyToTeacher(mode = 'copy', id = state.activeId, info = null, onDone = null) {
   if (!id || currentUser?.role !== 'admin') return;
-  const mod = state.modules[id];
-  openListModal('👥 Copiar a un docente', '<div class="list-empty">Cargando docentes…</div>');
+  const meta = info || state.modules[id]?.meta || {};
+  _copyCtx = { id, mode, cicloId: meta.cicloId ?? null, onDone };
+  const move = mode === 'move';
+  openListModal(move ? '🔁 Reasignar a otro docente' : '👥 Copiar a un docente', '<div class="list-empty">Cargando docentes…</div>');
   try {
     const [{ users }, { profiles }] = await Promise.all([Users.list(), Profiles.list()]);
-    _copyUsers = users.filter(u => u.role === 'docente' && u.activo);
+    _copyUsers = users.filter(u => u.role === 'docente' && u.activo && !(move && u.id === meta.userId));
     _allProfiles = profiles;
     if (!_copyUsers.length) {
-      document.getElementById('listModalBody').innerHTML = '<div class="list-empty">No hay docentes activos. Créalos en ⚙ Panel Admin.</div>';
+      document.getElementById('listModalBody').innerHTML = '<div class="list-empty">No hay otros docentes activos. Créalos en ⚙ Panel Admin.</div>';
       return;
     }
+    const owner = users.find(u => u.id === meta.userId);
     document.getElementById('listModalBody').innerHTML = `
       <p style="font-size:13px;color:var(--text-muted);margin:0">
-        Se crea una <strong>copia independiente</strong> de «${escHtml(mod.meta.name)}» que pasa a ser del docente elegido.
-        La original no cambia y el docente podrá editar su copia.</p>
+        ${move
+          ? `«${escHtml(meta.name || '')}» dejará de ser de <strong>${escHtml(owner?.nombre || owner?.username || 'su docente actual')}</strong> y pasará al docente elegido,
+             con todo su contenido, estado e historial. No se crea ninguna copia.`
+          : `Se crea una <strong>copia independiente</strong> de «${escHtml(meta.name || '')}» que pasa a ser del docente elegido.
+             La original no cambia y el docente podrá editar su copia.`}</p>
       <div class="field">
-        <label class="field-label">Docente</label>
+        <label class="field-label">${move ? 'Nuevo docente' : 'Docente'}</label>
         <select id="copyUser" onchange="copyUpdateCiclo()">
           <option value="">Elige un docente…</option>
           ${_copyUsers.map(u => `<option value="${u.id}">${escHtml(u.nombre || u.username)}${u.ciclos?.length ? ' · ' + u.ciclos.map(c => escHtml(c.cod)).join(', ') : ''}</option>`).join('')}
         </select>
       </div>
       <div class="field">
-        <label class="field-label">Perfil de ciclo de la copia</label>
+        <label class="field-label">Perfil de ciclo${move ? '' : ' de la copia'}</label>
         <select id="copyCiclo">
-          ${profiles.map(p => `<option value="${p.id}" ${p.id === mod.meta.cicloId ? 'selected' : ''}>${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('')}
-          <option value="">— Sin ciclo —</option>
+          ${profiles.map(p => `<option value="${p.id}" ${p.id === _copyCtx.cicloId ? 'selected' : ''}>${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('')}
+          <option value="" ${!_copyCtx.cicloId ? 'selected' : ''}>— Sin ciclo —</option>
         </select>
         <div id="copyCicloHint" class="ud-hint" style="margin-top:4px"></div>
       </div>
-      <div class="field">
+      ${move ? '' : `<div class="field">
         <label class="field-label">Título</label>
-        <input type="text" id="copyTitle" value="${escHtml(mod.meta.name || '')}">
-      </div>
+        <input type="text" id="copyTitle" value="${escHtml(meta.name || '')}">
+      </div>`}
       <label style="display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer">
         <input type="checkbox" id="copySetDocente" checked style="width:18px;height:18px">
         Poner su nombre en «Nombre del docente»
@@ -5446,46 +5461,56 @@ async function openCopyToTeacher() {
       <div id="copyStatus" style="font-size:13px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
         <button class="btn btn-ghost" onclick="closeListModal()">Cancelar</button>
-        <button class="btn btn-primary" id="copyBtn" onclick="doCopyToTeacher(${id})">👥 Crear copia</button>
+        <button class="btn btn-primary" id="copyBtn" onclick="doCopyToTeacher()">${move ? '🔁 Reasignar' : '👥 Crear copia'}</button>
       </div>`;
   } catch (e) {
     document.getElementById('listModalBody').innerHTML = `<div class="list-empty">Error: ${escHtml(e.message)}</div>`;
   }
 }
 
-// Al elegir docente: proponer el ciclo de la original si lo tiene; si no, el suyo
+// Al elegir docente: en copia se propone su ciclo; al reasignar se mantiene el de la programación
 function copyUpdateCiclo() {
   const u = _copyUsers.find(x => x.id === parseInt(document.getElementById('copyUser').value));
   const sel = document.getElementById('copyCiclo'), hint = document.getElementById('copyCicloHint');
   if (!u) { hint.textContent = ''; return; }
   const ids = u.cicloIds || [];
-  const orig = state.modules[state.activeId]?.meta.cicloId;
-  sel.value = ids.includes(orig) ? String(orig) : (ids[0] ? String(ids[0]) : (orig ? String(orig) : ''));
-  hint.textContent = ids.length ? '' : '⚠️ Este docente no tiene ciclos asignados.';
-  sel.onchange = () => {
+  const orig = _copyCtx.cicloId;
+  if (_copyCtx.mode === 'copy') sel.value = ids.includes(orig) ? String(orig) : (ids[0] ? String(ids[0]) : (orig ? String(orig) : ''));
+  const check = () => {
     const v = parseInt(sel.value);
-    hint.textContent = v && !ids.includes(v) ? '⚠️ El docente no pertenece a este ciclo. Podrá editar la copia, y la verán en solo lectura los docentes de ese ciclo.' : '';
+    hint.textContent = !ids.length ? '⚠️ Este docente no tiene ciclos asignados.'
+      : v && !ids.includes(v) ? '⚠️ El docente no pertenece a este ciclo. Podrá editarla, y la verán en solo lectura los docentes de ese ciclo.' : '';
   };
+  sel.onchange = check; check();
 }
 
-async function doCopyToTeacher(id) {
+async function doCopyToTeacher() {
+  const { id, mode, onDone } = _copyCtx;
   const userId = parseInt(document.getElementById('copyUser').value);
   const status = document.getElementById('copyStatus');
   if (!userId) { status.innerHTML = '<span style="color:var(--danger)">Elige un docente.</span>'; return; }
+  const u = _copyUsers.find(x => x.id === userId);
+  const cicloVal = document.getElementById('copyCiclo').value;
+  const body = {
+    userId,
+    cicloId: cicloVal ? parseInt(cicloVal) : null,
+    setDocente: document.getElementById('copySetDocente').checked,
+  };
+  if (mode === 'move' && !confirm(`¿Reasignar la programación a ${u?.nombre || u?.username}?\n\nSu propietario actual dejará de poder editarla.`)) return;
   const btn = document.getElementById('copyBtn'); btn.disabled = true;
   try {
-    const cicloVal = document.getElementById('copyCiclo').value;
-    const r = await Modules.copyTo(id, {
-      userId,
-      cicloId: cicloVal ? parseInt(cicloVal) : null,
-      titulo: document.getElementById('copyTitle').value.trim(),
-      setDocente: document.getElementById('copySetDocente').checked,
-    });
-    const u = _copyUsers.find(x => x.id === userId);
+    clearTimeout(_saveDebounceTimer);
+    if (mode === 'move' && state.activeId === id) await saveState();   // no perder lo último
+    const r = mode === 'move'
+      ? await Modules.reassign(id, body)
+      : await Modules.copyTo(id, { ...body, titulo: document.getElementById('copyTitle').value.trim() });
     await loadState();
+    if (mode === 'move' && state.activeId === id) { await loadModuleData(id); applyModuleLocks(state.modules[id]); renderMainContent(); }
     renderModulesList();
     closeListModal();
-    showStatus(`✔ Copia asignada a ${u?.nombre || u?.username}` + (r.warning ? ' · ' + r.warning : ''), r.warning ? 'error' : undefined);
+    const who = u?.nombre || u?.username;
+    showStatus((mode === 'move' ? `🔁 Programación reasignada a ${who}` : `✔ Copia asignada a ${who}`) + (r.warning ? ' · ' + r.warning : ''), r.warning ? 'error' : undefined);
+    if (onDone) onDone();
   } catch (e) {
     status.innerHTML = `<span style="color:var(--danger)">Error: ${escHtml(e.message)}</span>`;
     btn.disabled = false;
@@ -5558,6 +5583,7 @@ const AUDIT_LABELS = {
   'programacion.recuperar': 'Recuperada', 'programacion.eliminar_definitiva': 'Eliminada definitiva',
   'programacion.restaurar_version': 'Versión restaurada', 'programacion.cambiar_ciclo': 'Cambio de ciclo',
   'programacion.copiar_a_docente': 'Copia asignada',
+  'programacion.reasignar': 'Reasignada',
   'programacion.estado': 'Cambio de estado',
   'admin.borrar_todo': 'Borrado masivo', 'admin.borrado_rechazado': 'Borrado rechazado',
   'login.inactivo': 'Login cuenta desactivada',
