@@ -78,14 +78,14 @@ router.post('/login', (req, res) => {
     SELECT u.*, cp.cod AS cicloCod, cp.nombre AS cicloNombre
     FROM users u
     LEFT JOIN ciclo_profiles cp ON cp.id = u.ciclo_id
-    WHERE u.username = ? AND u.activo = 1
+    WHERE u.username = ?
   `).get(username);
 
   if (!user) {
     // Mismo mensaje para usuario no encontrado y contraseña incorrecta
     // (evitar enumerar usuarios)
     hit(ipKey); hit(userKey); hit(nameKey);
-    db.audit(req, 'login.fallido', null, null, 'usuario inexistente o inactivo', { id: null, username: uname });
+    db.audit(req, 'login.fallido', null, null, 'usuario inexistente', { id: null, username: uname });
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
 
@@ -95,6 +95,15 @@ router.post('/login', (req, res) => {
     hit(ipKey); hit(userKey); hit(nameKey);
     db.audit(req, 'login.fallido', null, null, 'contraseña incorrecta', { id: user.id, username: user.username });
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
+  }
+
+  // Cuenta desactivada: solo se informa si la contraseña es correcta
+  // (así no se revela qué cuentas existen)
+  if (!user.activo) {
+    db.audit(req, 'login.inactivo', null, null, null, { id: user.id, username: user.username });
+    return res.status(403).json({
+      error: 'Tu cuenta está desactivada. Si vuelves a trabajar en el centro, pide al jefe de departamento que la reactive: tus programaciones siguen guardadas.'
+    });
   }
 
   // Login correcto: limpiar contador y abrir sesión (JWT en cookie httpOnly)

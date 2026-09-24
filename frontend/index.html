@@ -1051,6 +1051,15 @@ const Audit = {
     .seg-table { min-width: 560px; }
   }
 
+  /* ── Estado de los docentes ── */
+  .user-filter { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .user-card { border: 1.5px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: var(--white); overflow: hidden; }
+  .user-card.is-inactive { background: var(--ro-bg); border-color: #cfd3da; }
+  .user-card.is-inactive .user-row-info > span:first-child { color: var(--text-muted); }
+  .user-status { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 1px 8px; border-radius: 10px; margin-left: 6px; }
+  .user-status.on  { background: #dcf3e6; color: #13623a; }
+  .user-status.off { background: #c9ced6; color: #3d4553; }
+
   /* ── Zona peligrosa ── */
   .danger-zone { border-color: #f0c8c4 !important; }
   .danger-zone .admin-section-head { background: #fdecea !important; color: var(--danger) !important; }
@@ -3647,18 +3656,31 @@ async function adminLoadUsersAndProfiles() {
       if (!users.filter(u => u.role === 'docente').length) {
         usersList.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">No hay docentes creados aún.</div>';
       } else {
-        usersList.innerHTML = users.filter(u => u.role === 'docente').map(u => `
-          <div style="border:1.5px solid var(--border);border-radius:7px;margin-bottom:6px;background:white;overflow:hidden">
+        const docentes = users.filter(u => u.role === 'docente');
+        const nAct = docentes.filter(u => u.activo).length, nIna = docentes.length - nAct;
+        const shown = docentes.filter(u => _userFilter === 'todos' || (_userFilter === 'activos' ? u.activo : !u.activo));
+        usersList.innerHTML = `
+          <div class="user-filter">
+            <div class="estado-filter" style="margin:0;flex:1">
+              ${[['activos', 'Activos', nAct], ['inactivos', 'Inactivos', nIna], ['todos', 'Todos', docentes.length]].map(([k, l, n]) =>
+                `<button class="ef-btn ${_userFilter === k ? 'on' : ''}" onclick="setUserFilter('${k}')">${l} <b>${n}</b></button>`).join('')}
+            </div>
+            ${nAct ? `<button class="btn btn-ghost btn-sm" onclick="adminDeactivateAll()" title="Fin de curso: nadie podrá entrar hasta que lo reactives">⏸ Desactivar a todos</button>` : ''}
+          </div>
+          ${shown.length ? '' : `<div class="ud-hint" style="padding:10px 2px">No hay docentes ${_userFilter === 'inactivos' ? 'inactivos' : 'activos'}.</div>`}
+        ` + shown.map(u => `
+          <div class="user-card ${u.activo ? '' : 'is-inactive'}">
             <div class="user-row-head">
               <div class="user-row-info">
                 <span style="font-size:13px;font-weight:500">${escHtml(u.nombre || u.username)}</span>
                 <span style="font-size:11px;color:var(--text-muted);margin-left:6px">@${escHtml(u.username)}</span>
                 ${(u.ciclos || []).length ? `<span style="font-size:11px;color:var(--navy);margin-left:6px">· ${u.ciclos.map(c => escHtml(c.cod)).join(', ')}</span>` : '<span style="font-size:11px;color:var(--danger);margin-left:6px">· Sin ciclo</span>'}
-                ${!u.activo ? '<span style="font-size:11px;color:var(--danger);margin-left:6px">· Inactivo</span>' : ''}
+                <span class="user-status ${u.activo ? 'on' : 'off'}">${u.activo ? '● Activo' : '○ Inactivo'}</span>
               </div>
               <div class="user-row-actions">
                 <button class="btn btn-ghost btn-sm" onclick="adminToggleEditUser(${u.id})">✏️ Editar</button>
-                <button class="btn btn-ghost btn-sm" onclick="adminToggleUser(${u.id},${u.activo})">${u.activo ? '⏸' : '▶'}</button>
+                <button class="btn btn-sm ${u.activo ? 'btn-ghost' : 'btn-primary'}" onclick="adminToggleUser(${u.id},${u.activo},'${escHtml(u.nombre || u.username).replace(/'/g, '')}')"
+                  title="${u.activo ? 'Impedir el acceso conservando sus datos' : 'Permitir de nuevo el acceso'}">${u.activo ? '⏸ Desactivar' : '▶ Reactivar'}</button>
                 <button class="btn btn-danger btn-sm" onclick="adminDeleteUser(${u.id},'${escHtml(u.username)}')">✕</button>
               </div>
             </div>
@@ -3828,15 +3850,37 @@ async function adminSaveUser(id) {
   }
 }
 
-async function adminToggleUser(id, currentActivo) {
+let _userFilter = 'activos';
+function setUserFilter(f) { _userFilter = f; adminLoadUsersAndProfiles(); }
+
+async function adminToggleUser(id, currentActivo, name = '') {
+  const msg = currentActivo
+    ? `¿Desactivar a ${name || 'este docente'}?\n\n• No podrá iniciar sesión y se cerrarán sus sesiones abiertas.\n• Sus programaciones y ciclos se CONSERVAN.\n• Puedes reactivarlo cuando quieras.`
+    : `¿Reactivar a ${name || 'este docente'}?\n\nPodrá volver a entrar con su contraseña y encontrará todas sus programaciones.`;
+  if (!confirm(msg)) return;
   try {
     await Users.update(id, { activo: !currentActivo });
+    showStatus(currentActivo ? `⏸ ${name} desactivado` : `▶ ${name} reactivado`);
     adminLoadUsersAndProfiles();
   } catch(e) { showStatus('Error: ' + e.message, 'error'); }
 }
 
+// Fin de curso: desactivar a todos los docentes de una vez
+async function adminDeactivateAll() {
+  try {
+    const { users } = await Users.list();
+    const act = users.filter(u => u.role === 'docente' && u.activo);
+    if (!act.length) return;
+    if (!confirm(`¿Desactivar a los ${act.length} docentes activos?\n\nNadie podrá entrar hasta que los reactives uno a uno (pestaña «Inactivos»). No se borra ninguna programación.`)) return;
+    for (const u of act) await Users.update(u.id, { activo: false });
+    showStatus(`⏸ ${act.length} docentes desactivados`);
+    _userFilter = 'inactivos';
+    adminLoadUsersAndProfiles();
+  } catch (e) { showStatus('Error: ' + e.message, 'error'); }
+}
+
 async function adminDeleteUser(id, username) {
-  if (!confirm(`¿Eliminar al docente "${username}"? Sus programaciones también se eliminarán.`)) return;
+  if (!confirm(`¿ELIMINAR al docente "${username}"?\n\nSe borrarán su cuenta y TODAS sus programaciones.\n\nSi solo quieres que no pueda entrar (por ejemplo, porque ya no está en el centro), cancela y usa «⏸ Desactivar»: conserva sus datos por si vuelve.`)) return;
   try {
     await Users.delete(id);
     adminLoadUsersAndProfiles();
@@ -5516,6 +5560,7 @@ const AUDIT_LABELS = {
   'programacion.copiar_a_docente': 'Copia asignada',
   'programacion.estado': 'Cambio de estado',
   'admin.borrar_todo': 'Borrado masivo', 'admin.borrado_rechazado': 'Borrado rechazado',
+  'login.inactivo': 'Login cuenta desactivada',
   'backup.exportar': 'Copia exportada', 'backup.restaurar': 'Copia restaurada',
 };
 let _auditLastId = null;
