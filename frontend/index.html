@@ -1150,6 +1150,7 @@ const Audit = {
   .seg-table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
   .seg-table th:nth-child(2) { width: 95px; } .seg-table th:nth-child(3) { width: 85px; }
   .seg-table th:nth-child(4) { width: 130px; } .seg-table th:nth-child(5) { width: 110px; } .seg-table th:nth-child(6), .seg-table th:nth-child(7) { width: 40px; }
+  .seg-table-ciclo th:nth-child(3) { width: 170px; }
   .seg-actions-cell { display: flex; gap: 6px; }
   .seg-act { width: 34px; height: 32px; border-radius: 7px; border: 1px solid var(--border); background: var(--white); cursor: pointer; font-size: 15px; flex: 0 0 auto; }
   .seg-act:hover { border-color: var(--primary); background: var(--primary-soft); }
@@ -1655,6 +1656,7 @@ const Audit = {
     <div class="admin-tabs" id="adminTabs">
       <button class="admin-tab active" onclick="adminSwitchTab('users')"    data-tab="users">👨‍🏫 Docentes y seguridad</button>
       <button class="admin-tab"        onclick="adminSwitchTab('byteacher')" data-tab="byteacher">📊 Programaciones por docente</button>
+      <button class="admin-tab"        onclick="adminSwitchTab('byciclo')"   data-tab="byciclo">🎓 Programaciones por ciclo</button>
       <button class="admin-tab"        onclick="adminSwitchTab('profiles')" data-tab="profiles">🔄 Perfiles de ciclo</button>
       <button class="admin-tab"        onclick="adminSwitchTab('locks')"    data-tab="locks">⭐ Campos recomendados</button>
       <button class="admin-tab"        onclick="adminSwitchTab('audit')"    data-tab="audit">📜 Auditoría</button>
@@ -1784,6 +1786,23 @@ const Audit = {
         </div>
         <div id="segSummary" class="seg-summary"></div>
         <div id="segList"><div class="list-empty">Cargando…</div></div>
+      </div>
+
+      <div class="admin-tab-panel" id="adminTab-byciclo">
+        <div class="seg-toolbar">
+          <input type="search" id="cicSearch" placeholder="Buscar docente o programación…" oninput="renderByCiclo()">
+          <select id="cicEstado" onchange="renderByCiclo()">
+            <option value="">Todos los estados</option>
+            <option value="trabajando">En curso</option>
+            <option value="terminada">Terminadas</option>
+          </select>
+          <label class="seg-dup-toggle" title="Programaciones que comparten código de módulo, o título si no tienen código, con otra programación distinta">
+            <input type="checkbox" id="cicDupOnly" onchange="renderByCiclo()"> Solo duplicadas
+          </label>
+          <button class="btn btn-ghost btn-sm" onclick="exportByCicloCsv()" title="Descargar la tabla en CSV (Excel)">⤓ CSV</button>
+        </div>
+        <div id="cicSummary" class="seg-summary"></div>
+        <div id="cicList"><div class="list-empty">Cargando…</div></div>
       </div>
 
       <div class="admin-tab-panel" id="adminTab-audit">
@@ -3894,6 +3913,7 @@ function adminSwitchTab(tab) {
   });
   if (tab === 'audit') adminLoadAudit();
   if (tab === 'byteacher') loadByTeacher();
+  if (tab === 'byciclo') loadByCiclo();
 }
 
 // ── Helpers del panel admin ────────────────────────────────
@@ -5493,21 +5513,36 @@ async function toggleEstado() {
 }
 
 // ── Admin: programaciones agrupadas por docente ──
-let _seg = { users: [], modules: [], profiles: [], open: new Set() };
+let _seg = { users: [], modules: [], profiles: [], open: new Set(), openCiclo: new Set() };
+
+// Carga docentes, programaciones y perfiles de ciclo (compartido por ambas vistas)
+async function fetchSegData() {
+  const [{ users }, { modules }, { profiles }] = await Promise.all([Users.list(), Modules.list(), Profiles.list()]);
+  _seg.users = users; _seg.modules = modules; _seg.profiles = profiles;
+}
 
 async function loadByTeacher() {
   document.getElementById('segList').innerHTML = '<div class="list-empty">Cargando…</div>';
   try {
-    const [{ users }, { modules }, { profiles }] = await Promise.all([Users.list(), Modules.list(), Profiles.list()]);
-    _seg.users = users; _seg.modules = modules; _seg.profiles = profiles;
+    await fetchSegData();
     const sel = document.getElementById('segCiclo'), cur = sel.value;
     sel.innerHTML = '<option value="">Todos los ciclos</option>' +
-      profiles.map(p => `<option value="${p.id}">${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('') +
+      _seg.profiles.map(p => `<option value="${p.id}">${escHtml(p.cod)} — ${escHtml(p.nombre)}</option>`).join('') +
       '<option value="none">Sin ciclo</option>';
     sel.value = cur;
     renderByTeacher();
   } catch (e) {
     document.getElementById('segList').innerHTML = `<div class="list-empty">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function loadByCiclo() {
+  document.getElementById('cicList').innerHTML = '<div class="list-empty">Cargando…</div>';
+  try {
+    await fetchSegData();
+    renderByCiclo();
+  } catch (e) {
+    document.getElementById('cicList').innerHTML = `<div class="list-empty">Error: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -5610,7 +5645,7 @@ function renderByTeacher() {
           <button class="seg-act" title="Reasignar a otro docente"
             onclick="openCopyToTeacher('move', ${m.id}, { name: ${escHtml(JSON.stringify(m.titulo || ''))}, userId: ${m.user_id}, cicloId: ${m.ciclo_id ?? 'null'} }, loadByTeacher)">🔁</button>
           <button class="seg-act seg-act-danger" title="Mover a la papelera"
-            onclick="deleteFromAdmin(${m.id}, ${escHtml(JSON.stringify(m.titulo || 'esta programación'))})">🗑</button>
+            onclick="deleteFromAdmin(${m.id}, ${escHtml(JSON.stringify(m.titulo || 'esta programación'))}, loadByTeacher)">🗑</button>
         </td>
       </tr>`).join('');
     return `<div class="seg-teacher ${open ? 'open' : ''}" id="seg_${g.u.id}">
@@ -5642,14 +5677,124 @@ function segExpandAll(open) {
   renderByTeacher();
 }
 
-async function deleteFromAdmin(id, titulo) {
+// ── Vista: programaciones agrupadas por ciclo ──
+
+// Programaciones que pasan los filtros, agrupadas por ciclo (incluye "Sin ciclo")
+function byCicloGroups() {
+  const q       = normSearch((document.getElementById('cicSearch')?.value || '').trim());
+  const estado  = document.getElementById('cicEstado')?.value || '';
+  const onlyDup = !!document.getElementById('cicDupOnly')?.checked;
+  const dupMap  = segDupMap();
+  const groups = new Map();  // key ciclo id o 'none' -> { ciclo, mods: [] }
+  _seg.profiles.forEach(p => groups.set(String(p.id), { ciclo: p, mods: [] }));
+  groups.set('none', { ciclo: null, mods: [] });
+
+  _seg.modules.forEach(m => {
+    if (estado && (m.estado || 'trabajando') !== estado) return;
+    if (onlyDup && !dupMap.has(segDupKey(m))) return;
+    const docente = segUserName(m.user_id);
+    const hit = !q || normSearch(m.titulo).includes(q) || normSearch(m.codigo).includes(q) || normSearch(docente).includes(q);
+    if (!hit) return;
+    m._dupGroup = dupMap.get(segDupKey(m)) || null;
+    m._docenteNombre = docente;
+    const key = m.ciclo_id ? String(m.ciclo_id) : 'none';
+    if (!groups.has(key)) groups.set(key, { ciclo: { id: m.ciclo_id, cod: m.cicloCod, nombre: '' }, mods: [] });
+    groups.get(key).mods.push(m);
+  });
+
+  return [...groups.values()]
+    .filter(g => g.mods.length)
+    .sort((a, b) => !!a.ciclo === !!b.ciclo ? (a.ciclo?.cod || '').localeCompare(b.ciclo?.cod || '') : (a.ciclo ? -1 : 1));
+}
+
+function renderByCiclo() {
+  const groups = byCicloGroups();
+  const mods = groups.flatMap(g => g.mods);
+  const done = mods.filter(m => m.estado === 'terminada').length;
+  const dupCount = mods.filter(m => m._dupGroup).length;
+  document.getElementById('cicSummary').innerHTML = `
+    <div class="seg-kpi"><b>${groups.length}</b><span>ciclos</span></div>
+    <div class="seg-kpi"><b>${mods.length}</b><span>programaciones</span></div>
+    <div class="seg-kpi ok"><b>${done}</b><span>terminadas</span></div>
+    <div class="seg-kpi wip"><b>${mods.length - done}</b><span>en curso</span></div>
+    ${dupCount ? `<div class="seg-kpi warn"><b>${dupCount}</b><span>posibles duplicadas</span></div>` : ''}`;
+
+  if (!groups.length) {
+    document.getElementById('cicList').innerHTML = '<div class="list-empty">Nada coincide con los filtros.</div>';
+    return;
+  }
+  document.getElementById('cicList').innerHTML = groups.map(g => {
+    const gid = g.ciclo ? g.ciclo.id : 'none';
+    const n = g.mods.length, t = g.mods.filter(m => m.estado === 'terminada').length;
+    const pct = n ? Math.round(t * 100 / n) : 0;
+    const open = _seg.openCiclo.has(gid) || !!(document.getElementById('cicSearch')?.value.trim());
+    const rows = [...g.mods].sort((a, b) => a._docenteNombre.localeCompare(b._docenteNombre, 'es')).map(m => `
+      <tr>
+        <td><a href="#" onclick="openFromAdmin(${m.id});return false" title="Abrir">${escHtml(m.titulo || 'Sin título')}</a>${m._dupGroup ? (() => {
+          const otros = m._dupGroup.filter(x => x.id !== m.id).map(x => `${x.titulo || 'Sin título'} (${segUserName(x.user_id)})`).join(' · ');
+          return ` <span class="dup-badge" title="Coincide con: ${escHtml(otros)}">⧉ ${m._dupGroup.length}</span>`;
+        })() : ''}</td>
+        <td>${escHtml(m.codigo || '')}</td>
+        <td>${escHtml(m._docenteNombre)}</td>
+        <td>${estadoBadge(m.estado)}</td>
+        <td title="${escHtml(fmtDate(m.updated_at))}">${relTime(m.updated_at)}</td>
+        <td class="seg-actions-cell">
+          <button class="seg-act" title="Reasignar a otro docente"
+            onclick="openCopyToTeacher('move', ${m.id}, { name: ${escHtml(JSON.stringify(m.titulo || ''))}, userId: ${m.user_id}, cicloId: ${m.ciclo_id ?? 'null'} }, loadByCiclo)">🔁</button>
+          <button class="seg-act seg-act-danger" title="Mover a la papelera"
+            onclick="deleteFromAdmin(${m.id}, ${escHtml(JSON.stringify(m.titulo || 'esta programación'))}, loadByCiclo)">🗑</button>
+        </td>
+      </tr>`).join('');
+    return `<div class="seg-teacher ${open ? 'open' : ''}" id="cic_${gid}">
+      <button class="seg-head" onclick="toggleSegCiclo('${gid}')">
+        <span class="seg-caret">▸</span>
+        <span class="seg-name">${g.ciclo ? `${escHtml(g.ciclo.cod)}${g.ciclo.nombre ? ' — ' + escHtml(g.ciclo.nombre) : ''}` : 'Sin ciclo asignado'}</span>
+        <span class="seg-count">${n} programación${n !== 1 ? 'es' : ''}</span>
+        <span class="seg-progress" title="${t} de ${n} terminadas"><span class="cov-bar"><span style="width:${pct}%"></span></span><small>${t}/${n}</small></span>
+      </button>
+      <div class="seg-body">
+        <div class="table-scroll"><table class="seg-table seg-table-ciclo">
+          <thead><tr><th>Programación</th><th>Código</th><th>Docente</th><th>Estado</th><th>Modificada</th><th></th><th></th></tr></thead>
+          <tbody>${rows}</tbody></table></div>
+      </div>
+    </div>`;
+  }).join('') + `<div style="text-align:right;margin-top:8px">
+      <button class="btn btn-ghost btn-sm" onclick="segExpandAllCiclo(true)">Desplegar todo</button>
+      <button class="btn btn-ghost btn-sm" onclick="segExpandAllCiclo(false)">Plegar todo</button></div>`;
+}
+
+function toggleSegCiclo(id) {
+  _seg.openCiclo.has(id) ? _seg.openCiclo.delete(id) : _seg.openCiclo.add(id);
+  document.getElementById('cic_' + id)?.classList.toggle('open');
+}
+function segExpandAllCiclo(open) {
+  _seg.openCiclo = new Set(open ? [..._seg.profiles.map(p => p.id), 'none'] : []);
+  renderByCiclo();
+}
+
+function exportByCicloCsv() {
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [['Ciclo', 'Docente', 'Programación', 'Código', 'Estado', 'Última modificación'].map(q).join(';')];
+  byCicloGroups().forEach(g => {
+    const cicloLabel = g.ciclo ? g.ciclo.cod : 'Sin ciclo';
+    g.mods.forEach(m => lines.push([cicloLabel, m._docenteNombre, m.titulo, m.codigo,
+      m.estado === 'terminada' ? 'Terminada' : 'En curso', fmtDate(m.updated_at)].map(q).join(';')));
+  });
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `programaciones_por_ciclo_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+async function deleteFromAdmin(id, titulo, onDone = loadByTeacher) {
   if (!confirm(`¿Mover "${titulo}" a la papelera?\n\nEl docente podrá recuperarla durante 30 días desde su "🗑 Papelera".`)) return;
   try {
     await Modules.delete(id);
     delete state.modules[id];
     if (state.activeId == id) { state.activeId = null; renderMainContent(); }
     renderModulesList();
-    loadByTeacher();
+    onDone();
     showStatus(`🗑 "${titulo}" movida a la papelera`);
   } catch (e) { showStatus('Error al eliminar: ' + e.message, 'error'); }
 }
