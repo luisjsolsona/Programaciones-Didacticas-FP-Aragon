@@ -44,8 +44,11 @@ router.post('/docx', requireAuth, async (req, res) => {
     }, null);
     const fixed = await fixDocx(buf);
 
+    // Solo se quitan caracteres no válidos en nombres de archivo (Windows/macOS);
+    // se conservan acentos y espacios, como en exportBaseName() del frontend
     const safeName = String(filename || 'programacion')
-      .replace(/[^\w.\-]+/g, '_').replace(/\.docx?$/i, '').slice(0, 120) + '.docx';
+      .replace(/[\\/:*?"<>|\x00-\x1F]+/g, ' ').replace(/\s+/g, ' ').trim()
+      .replace(/\.docx?$/i, '').slice(0, 150) + '.docx';
 
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

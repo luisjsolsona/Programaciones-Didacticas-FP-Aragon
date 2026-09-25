@@ -3440,11 +3440,23 @@ function normalizeForDocx(html) {
   return '<!DOCTYPE html>' + doc.documentElement.outerHTML;
 }
 
+// Nombre de archivo para exportaciones: Perfil de ciclo _ Código _ Nombre del módulo
+// (sin extensión; cada exportación añade la suya)
+function exportBaseName(mod, data) {
+  const ciclo  = mod.meta.cicloCod || (/\(([A-Z]{3}\d{3})\)/.exec(data.ciclo || '') || [])[1] || '';
+  const codigo = data.modulo_codigo || mod.meta.code || '';
+  const nombre = data.modulo_nombre || mod.meta.name || 'programacion';
+  return [ciclo, codigo, nombre].filter(Boolean).join('_')
+    .replace(/[\\/:*?"<>|]+/g, ' ')   // caracteres no válidos en nombres de archivo
+    .replace(/\s+/g, ' ').trim()
+    .slice(0, 150);
+}
+
 async function exportWord() {
   if (!state.activeId) return;
   const mod  = state.modules[state.activeId];
   const data = mod.data || {};
-  const filename = `programacion_${data.modulo_codigo || 'modulo'}_${data.curso || ''}`;
+  const filename = exportBaseName(mod, data);
   showLoading('Generando documento Word…');
   try {
     const html = normalizeForDocx(buildDocumentHtml(mod, data, 'word'));
@@ -3457,7 +3469,7 @@ async function exportWord() {
     const blob = await r.blob();
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = filename.replace(/[^\w.\-]+/g, '_') + '.docx';
+    a.href = url; a.download = filename + '.docx';
     a.click(); URL.revokeObjectURL(url);
     showStatus('✔ Documento Word (.docx) generado');
   } catch (e) {
@@ -3476,7 +3488,7 @@ function generateWordHtml(mod) {
   const blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url;
-  a.download = `programacion_${data.modulo_codigo || 'modulo'}_${data.curso || ''}.doc`;
+  a.download = exportBaseName(mod, data) + '.doc';
   a.click(); URL.revokeObjectURL(url);
 }
 
@@ -3489,7 +3501,7 @@ async function exportPDF() {
   const data = mod.data || {};
   showLoading('Generando PDF…');
 
-  const html = buildDocumentHtml(mod, data);
+  const html = buildDocumentHtml(mod, data, 'preview', exportBaseName(mod, data));
   const win = window.open('', '_blank');
   win.document.write(html);
   win.document.close();
@@ -3499,7 +3511,7 @@ async function exportPDF() {
 // ===================================================
 //  CONSTRUCTOR DE DOCUMENTO HTML
 // ===================================================
-function buildDocumentHtml(mod, data, target = 'preview') {
+function buildDocumentHtml(mod, data, target = 'preview', docTitle = null) {
   const titulo = data.modulo_nombre || mod.meta.name || 'Programación Didáctica';
   const codigo = data.modulo_codigo || mod.meta.code || '';
   const ciclo  = data.ciclo || mod.meta.cycle || '';
@@ -3633,7 +3645,7 @@ function buildDocumentHtml(mod, data, target = 'preview') {
 <html lang="es"${target === 'word' ? ' xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"' : ''}>
 <head>
 <meta charset="UTF-8">
-<title>${escHtml(titulo)}</title>
+<title>${escHtml(docTitle || titulo)}</title>
 ${target === 'word' ? `<!--[if gte mso 9]><xml>
  <w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom>
  <w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->` : ''}
