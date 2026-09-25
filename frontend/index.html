@@ -1654,7 +1654,8 @@ const Audit = {
 
     <!-- Pestañas -->
     <div class="admin-tabs" id="adminTabs">
-      <button class="admin-tab active" onclick="adminSwitchTab('users')"    data-tab="users">👨‍🏫 Docentes y seguridad</button>
+      <button class="admin-tab active" onclick="adminSwitchTab('teachers')" data-tab="teachers">👨‍🏫 Docentes</button>
+      <button class="admin-tab"        onclick="adminSwitchTab('security')" data-tab="security">🔐 Seguridad</button>
       <button class="admin-tab"        onclick="adminSwitchTab('byteacher')" data-tab="byteacher">📊 Programaciones por docente</button>
       <button class="admin-tab"        onclick="adminSwitchTab('byciclo')"   data-tab="byciclo">🎓 Programaciones por ciclo</button>
       <button class="admin-tab"        onclick="adminSwitchTab('profiles')" data-tab="profiles">🔄 Perfiles de ciclo</button>
@@ -1665,19 +1666,8 @@ const Audit = {
     <!-- Contenido de pestañas -->
     <div class="admin-panel-body">
 
-      <!-- ── PESTAÑA 1: Docentes y seguridad ── -->
-      <div class="admin-tab-panel active" id="adminTab-users">
-        <!-- Seguridad -->
-        <div class="admin-section">
-          <div class="admin-section-head">🔐 Seguridad</div>
-          <div class="admin-section-body">
-            <div class="field" style="max-width:360px">
-              <label class="field-label">Nueva contraseña de administrador</label>
-              <input type="password" id="adminNewPwd" placeholder="Dejar vacío para no cambiar"
-                style="border:1.5px solid var(--border);border-radius:6px;padding:8px 12px;font-size:13px;width:100%">
-            </div>
-          </div>
-        </div>
+      <!-- ── PESTAÑA 1: Docentes ── -->
+      <div class="admin-tab-panel active" id="adminTab-teachers">
         <!-- Docentes -->
         <div class="admin-section">
           <div class="admin-section-head">👨‍🏫 Docentes</div>
@@ -1715,6 +1705,35 @@ const Audit = {
                   <button class="btn btn-primary btn-sm" onclick="adminCreateUser()">Crear docente</button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PESTAÑA: Seguridad ── -->
+      <div class="admin-tab-panel" id="adminTab-security">
+        <!-- Contraseña de administrador -->
+        <div class="admin-section">
+          <div class="admin-section-head">🔐 Seguridad</div>
+          <div class="admin-section-body">
+            <div class="field" style="max-width:360px">
+              <label class="field-label">Nueva contraseña de administrador</label>
+              <input type="password" id="adminNewPwd" placeholder="Dejar vacío para no cambiar"
+                style="border:1.5px solid var(--border);border-radius:6px;padding:8px 12px;font-size:13px;width:100%">
+            </div>
+          </div>
+        </div>
+
+        <!-- Copia de seguridad -->
+        <div class="admin-section">
+          <div class="admin-section-head">📦 Copia de seguridad</div>
+          <div class="admin-section-body">
+            <p style="font-size:13.5px;margin:0 0 12px">
+              Copia completa del servidor: ciclos, docentes y programaciones. Al restaurar, los ciclos y
+              usuarios existentes se actualizan; las programaciones se añaden (no sustituyen a las actuales).</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm" onclick="ddExportBackup()">📦 Exportar copia de seguridad (.json)</button>
+              <button class="btn btn-ghost btn-sm" onclick="ddRestoreBackup()">📂 Restaurar copia de seguridad (.json)</button>
             </div>
           </div>
         </div>
