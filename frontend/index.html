@@ -270,7 +270,7 @@ const Audit = {
   /* ===== FIELDS ===== */
   .field { display: flex; flex-direction: column; gap: 7px; }
   .field-label {
-    font-size: 14.5px; font-weight: 600; color: var(--navy);
+    font-size: 20px; font-weight: 600; color: var(--navy);
     display: flex; align-items: center; gap: 7px;
     letter-spacing: 0.01em;
   }
@@ -295,10 +295,6 @@ const Audit = {
   .reco-fixed { position: relative; padding: 12px 14px 12px 18px; background: var(--locked-bg); }
   .reco-fixed::before {
     content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--gold);
-  }
-  .reco-fixed-label {
-    display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .05em; color: #8a6d1a; margin-bottom: 5px;
   }
   .reco-fixed-content { font-size: 14px; color: var(--text); line-height: 1.5; }
   .reco-fixed-content:empty::before { content: '—'; color: var(--text-muted); }
@@ -1027,7 +1023,7 @@ const Audit = {
   .section-header { padding: 16px 24px; }
   .section-header h3 { font-size: 20px; letter-spacing: .005em; }
   .form-section { border-radius: 12px; }
-  .field-label { font-size: 15px; font-weight: 600; }
+  .field-label { font-size: 20px; font-weight: 600; }
   .field input, .field textarea, .field select { font-size: 15px; padding: 10px 14px; border-radius: var(--radius); }
   .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
   .locked-badge { background: var(--gold); color: var(--navy); font-size: 10.5px; padding: 2px 7px; border-radius: 4px; font-weight: 700; }
@@ -2765,7 +2761,6 @@ function renderField(field, data, forceReadOnly = false) {
       innerHtml = `
         <div class="reco-card">
           <div class="reco-fixed">
-            <div class="reco-fixed-label">📌 Valor recomendado</div>
             <div class="rich-content ${tall} locked reco-fixed-content" style="min-height:60px">${value || ''}</div>
           </div>
           <details class="reco-details" ${hasExtra ? 'open' : ''}>
@@ -2834,7 +2829,6 @@ function renderField(field, data, forceReadOnly = false) {
       innerHtml = `
         <div class="reco-card">
           <div class="reco-fixed">
-            <div class="reco-fixed-label">📌 Valor recomendado</div>
             <div class="reco-fixed-content">${escHtml(value)}</div>
           </div>
           <details class="reco-details" ${hasExtra ? 'open' : ''}>
@@ -2855,7 +2849,7 @@ function renderField(field, data, forceReadOnly = false) {
     }
   }
 
-  const lockBadge = locked ? '<span class="locked-badge">RECOMENDADO</span>' : '';
+  const lockBadge = locked ? '<span class="locked-badge">📌 Recomendado</span>' : '';
   const importBtn = (!locked && field.importTarget)
     ? `<button class="btn btn-sm" onclick="openImportModal('${field.importTarget}')"
         style="background:#1a6fad;color:white;font-size:11px;padding:3px 10px;margin-left:8px">
@@ -3941,19 +3935,20 @@ async function adminLoadUsersAndProfiles() {
 async function adminLoadCicloLocks(cicloId) {
   const st = document.getElementById('adminCicloStatus');
   if (!cicloId) { if (st) st.textContent = ''; return; }
+  document.querySelector('.admin-panel-body')?.scrollTo({ top: 0 });
   try {
     const { profile } = await Profiles.get(cicloId);
     const lockedArr   = profile.locked_fields || [];
     // Resetear todos los toggles
     document.querySelectorAll('[id^="lock_"]').forEach(el => {
       el.checked = false;
-      adminToggleLock(el.id.replace('lock_',''), false);
+      adminToggleLock(el.id.replace('lock_',''), false, false);
     });
     // Activar los del perfil cargado
     lockedArr.forEach(f => {
       const lockEl = document.getElementById('lock_' + f.key);
       const valEl  = document.getElementById('lv_'   + f.key);
-      if (lockEl) { lockEl.checked = true; adminToggleLock(f.key, true); }
+      if (lockEl) { lockEl.checked = true; adminToggleLock(f.key, true, false); }
       if (valEl) {
         if (valEl.tagName === 'INPUT') valEl.value = f.value || '';
         else valEl.innerHTML = f.value || '';
@@ -4200,7 +4195,7 @@ async function saveAdminConfig() {
 }
 
 // Muestra/oculta el área de texto fijo al activar/desactivar el candado en el admin
-function adminToggleLock(fieldKey, checked) {
+function adminToggleLock(fieldKey, checked, autofocus = true) {
   const valDiv    = document.getElementById('lockval_'   + fieldKey);
   const label     = document.getElementById('lockLabel_' + fieldKey);
   const blockHead = document.getElementById('blockhead_' + fieldKey);
@@ -4211,7 +4206,7 @@ function adminToggleLock(fieldKey, checked) {
     label.style.fontWeight  = checked ? '600'               : '400';
   }
   if (blockHead)  blockHead.style.background = checked ? 'var(--locked-bg)' : 'var(--white)';
-  if (checked) {
+  if (checked && autofocus) {
     const input = document.getElementById('lv_' + fieldKey);
     if (input) setTimeout(() => input.focus(), 50);
   }
