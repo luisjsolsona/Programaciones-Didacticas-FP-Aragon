@@ -1113,11 +1113,20 @@ const Audit = {
   @media (max-width: 900px) { .ud-line { grid-template-columns: 1fr; gap: 4px; } }
 
   /* ── Programaciones por docente ── */
-  .seg-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .seg-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
   .seg-toolbar input, .seg-toolbar select {
     font: inherit; font-size: 14px; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--white);
   }
-  .seg-toolbar input { flex: 1 1 240px; }
+  .seg-toolbar input[type="search"] { flex: 1 1 200px; min-width: 140px; }
+  .seg-dup-toggle {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--text-muted);
+    padding: 0 10px; white-space: nowrap; cursor: pointer;
+  }
+  .seg-dup-toggle input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+  .dup-badge {
+    display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; color: #8a5300;
+    background: #fff1d6; border: 1px solid #f0c98a; border-radius: 10px; padding: 1px 7px; margin-left: 5px; cursor: help;
+  }
   .seg-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
   .seg-kpi { flex: 1 1 110px; background: var(--white); border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 12px; }
   .seg-kpi b { display: block; font-size: 22px; color: var(--navy); line-height: 1.1; }
@@ -1768,6 +1777,9 @@ const Audit = {
             <option value="trabajando">En curso</option>
             <option value="terminada">Terminadas</option>
           </select>
+          <label class="seg-dup-toggle" title="Programaciones que comparten código de módulo, o título si no tienen código, con otra programación distinta">
+            <input type="checkbox" id="segDupOnly" onchange="renderByTeacher()"> Solo duplicadas
+          </label>
           <button class="btn btn-ghost btn-sm" onclick="exportByTeacherCsv()" title="Descargar la tabla en CSV (Excel)">⤓ CSV</button>
         </div>
         <div id="segSummary" class="seg-summary"></div>
@@ -5499,14 +5511,42 @@ async function loadByTeacher() {
   }
 }
 
+// Clave para detectar duplicados: código del módulo (si lo tiene) o, si no, el título
+function segDupKey(m) {
+  const code = (m.codigo || '').trim().toUpperCase();
+  return code ? 'c:' + code : 't:' + normSearch(m.titulo || '');
+}
+
+// Mapa clave -> lista de programaciones con esa clave (2+ = duplicadas), sobre TODAS
+// las programaciones del sistema, independientemente de los filtros aplicados
+function segDupMap() {
+  const map = new Map();
+  _seg.modules.forEach(m => {
+    const k = segDupKey(m);
+    if (!k || k === 'c:' || k === 't:') return;   // sin código ni título: no se puede comparar
+    (map.get(k) || map.set(k, []).get(k)).push(m);
+  });
+  for (const [k, arr] of map) if (arr.length < 2) map.delete(k);
+  return map;
+}
+
+// Nombre del docente de una programación, a partir de su lista de usuarios
+function segUserName(userId) {
+  const u = _seg.users.find(x => x.id === userId);
+  return u ? (u.nombre || u.username) : '—';
+}
+
 // Programaciones que pasan los filtros, agrupadas por docente
 function byTeacherGroups() {
-  const q      = (document.getElementById('segSearch')?.value || '').trim().toLowerCase();
-  const ciclo  = document.getElementById('segCiclo')?.value || '';
-  const estado = document.getElementById('segEstado')?.value || '';
+  const q       = (document.getElementById('segSearch')?.value || '').trim().toLowerCase();
+  const ciclo   = document.getElementById('segCiclo')?.value || '';
+  const estado  = document.getElementById('segEstado')?.value || '';
+  const onlyDup = !!document.getElementById('segDupOnly')?.checked;
+  const dupMap  = segDupMap();
   const okMod = m =>
     (!ciclo || (ciclo === 'none' ? !m.ciclo_id : String(m.ciclo_id) === ciclo)) &&
-    (!estado || (m.estado || 'trabajando') === estado);
+    (!estado || (m.estado || 'trabajando') === estado) &&
+    (!onlyDup || dupMap.has(segDupKey(m)));
   return _seg.users
     .filter(u => u.activo || _seg.modules.some(m => m.user_id === u.id))
     .map(u => {
@@ -5514,9 +5554,10 @@ function byTeacherGroups() {
       const name = u.nombre || u.username;
       const userHit = !q || name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q);
       const mods = all.filter(okMod).filter(m => userHit || (m.titulo || '').toLowerCase().includes(q) || (m.codigo || '').toLowerCase().includes(q));
+      mods.forEach(m => { m._dupGroup = dupMap.get(segDupKey(m)) || null; });
       // Con filtro de ciclo, mostrar también a los docentes de ese ciclo aunque no tengan programaciones
       const inCiclo = ciclo && ciclo !== 'none' && (u.cicloIds || []).includes(parseInt(ciclo));
-      const visible = mods.length || (userHit && !estado && (!ciclo || inCiclo));
+      const visible = mods.length || (userHit && !estado && !onlyDup && (!ciclo || inCiclo));
       return { u, name, all, mods, visible };
     })
     .filter(g => g.visible)
@@ -5537,12 +5578,14 @@ function renderByTeacher() {
   const mods = groups.flatMap(g => g.mods);
   const done = mods.filter(m => m.estado === 'terminada').length;
   const sinProg = groups.filter(g => g.u.role !== 'admin' && !g.all.length).length;
+  const dupCount = mods.filter(m => m._dupGroup).length;
   document.getElementById('segSummary').innerHTML = `
     <div class="seg-kpi"><b>${groups.filter(g => g.u.role !== 'admin').length}</b><span>docentes</span></div>
     <div class="seg-kpi"><b>${mods.length}</b><span>programaciones</span></div>
     <div class="seg-kpi ok"><b>${done}</b><span>terminadas</span></div>
     <div class="seg-kpi wip"><b>${mods.length - done}</b><span>en curso</span></div>
-    ${sinProg ? `<div class="seg-kpi warn"><b>${sinProg}</b><span>sin programaciones</span></div>` : ''}`;
+    ${sinProg ? `<div class="seg-kpi warn"><b>${sinProg}</b><span>sin programaciones</span></div>` : ''}
+    ${dupCount ? `<div class="seg-kpi warn"><b>${dupCount}</b><span>posibles duplicadas</span></div>` : ''}`;
 
   if (!groups.length) {
     document.getElementById('segList').innerHTML = '<div class="list-empty">Nada coincide con los filtros.</div>';
@@ -5555,7 +5598,10 @@ function renderByTeacher() {
     const ciclos = (g.u.ciclos || []).map(c => `<span class="tag-mini">${escHtml(c.cod)}</span>`).join('');
     const rows = g.mods.map(m => `
       <tr>
-        <td><a href="#" onclick="openFromAdmin(${m.id});return false" title="Abrir">${escHtml(m.titulo || 'Sin título')}</a></td>
+        <td><a href="#" onclick="openFromAdmin(${m.id});return false" title="Abrir">${escHtml(m.titulo || 'Sin título')}</a>${m._dupGroup ? (() => {
+          const otros = m._dupGroup.filter(x => x.id !== m.id).map(x => `${x.titulo || 'Sin título'} (${segUserName(x.user_id)})`).join(' · ');
+          return ` <span class="dup-badge" title="Coincide con: ${escHtml(otros)}">⧉ ${m._dupGroup.length}</span>`;
+        })() : ''}</td>
         <td>${escHtml(m.codigo || '')}</td>
         <td>${escHtml(m.cicloCod || '—')}</td>
         <td>${estadoBadge(m.estado)}</td>
