@@ -14,7 +14,7 @@ const router = express.Router();
 router.get('/', requireAdmin, (req, res) => {
   const ciclos = db.prepare(`SELECT id, cod, nombre, locked_fields, created_at FROM ciclo_profiles`).all();
   const users  = db.prepare(`SELECT id, username, password_hash, role, ciclo_id, nombre, activo, created_at FROM users`).all();
-  const progs  = db.prepare(`SELECT id, user_id, ciclo_id, titulo, codigo, data, estado, created_at, updated_at FROM programaciones WHERE deleted_at IS NULL`).all();
+  const progs  = db.prepare(`SELECT id, user_id, ciclo_id, titulo, codigo, data, estado, estado_at, created_at, updated_at FROM programaciones WHERE deleted_at IS NULL`).all();
   const userCiclos = db.prepare(`SELECT user_id, ciclo_id FROM user_ciclos`).all();
   db.audit(req, 'backup.exportar', null, null, { programaciones: progs.length });
   res.json({
@@ -74,12 +74,12 @@ router.post('/', requireAdmin, (req, res) => {
     `).run();
 
     // 3. Programaciones: se añaden (no se sobrescriben las existentes)
-    const insP = db.prepare(`INSERT INTO programaciones (user_id, ciclo_id, titulo, codigo, data, estado, created_at, updated_at)
-                             VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), COALESCE(?, datetime('now')))`);
+    const insP = db.prepare(`INSERT INTO programaciones (user_id, ciclo_id, titulo, codigo, data, estado, estado_at, created_at, updated_at)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), COALESCE(?, datetime('now')))`);
     for (const p of programaciones) {
       const uid = userMap[p.user_id] ?? req.user.id;
       const cid = p.ciclo_id ? (cicloMap[p.ciclo_id] ?? null) : null;
-      insP.run(uid, cid, sanitizeDeep(p.titulo), p.codigo ? sanitizeDeep(p.codigo) : null, JSON.stringify(sanitizeDeep(p.data || {})), p.estado === 'terminada' ? 'terminada' : 'trabajando', p.created_at, p.updated_at);
+      insP.run(uid, cid, sanitizeDeep(p.titulo), p.codigo ? sanitizeDeep(p.codigo) : null, JSON.stringify(sanitizeDeep(p.data || {})), p.estado === 'terminada' ? 'terminada' : 'trabajando', p.estado_at || null, p.created_at, p.updated_at);
       stats.programaciones++;
     }
   });
