@@ -315,32 +315,93 @@ const Audit = {
   .field textarea.tall { min-height: 160px; }
 
   /* ===== TABLA CALIFICACIÓN POR EVALUACIÓN ===== */
-  .cal-ev-wrap { display: flex; flex-direction: column; gap: 16px; }
-  .cal-ev-block {
-    border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden;
+  .cal-ev-wrap { display: flex; flex-direction: column; gap: 14px; }
+  .calev-card { border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--white); }
+  .calev-head {
+    background: var(--navy); color: #fff; padding: 9px 12px;
+    display: flex; align-items: center; gap: 10px;
   }
-  .cal-ev-head {
-    background: var(--navy); color: white;
-    padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;
+  .calev-num {
+    flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; background: var(--gold); color: var(--navy);
+    display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
   }
-  .cal-ev-head-title { font-weight: 600; font-size: 14px; }
-  .cal-ev-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .cal-ev-table th {
-    background: var(--cream-dark); padding: 8px 10px; text-align: left;
-    font-size: 11px; font-weight: 700; color: var(--text-muted);
-    text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--border);
+  .calev-name {
+    flex: 1; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 6px;
+    color: #fff; font-weight: 600; font-size: 14.5px; padding: 6px 10px; font-family: 'Source Sans 3', system-ui, sans-serif;
   }
-  .cal-ev-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-  .cal-ev-table tr:last-child td { border-bottom: none; }
-  .cal-ev-table td input, .cal-ev-table td textarea {
-    width: 100%; border: none; background: transparent;
-    font-family: 'Source Sans 3', system-ui, sans-serif; font-size: 13px; color: var(--text); padding: 3px 4px;
+  .calev-name::placeholder { color: rgba(255,255,255,.6); }
+  .calev-name:focus { outline: none; border-color: var(--gold); background: rgba(255,255,255,.18); }
+  .calev-del {
+    flex: 0 0 auto; width: 30px; height: 30px; border-radius: 7px; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(255,255,255,.1); color: #fff; cursor: pointer; font-size: 14px;
   }
-  .cal-ev-table td input[type=number] { width: 64px; text-align: right; }
-  .cal-ev-table td input:focus, .cal-ev-table td textarea:focus {
-    outline: 1px solid var(--navy); background: rgba(26,39,68,0.04); border-radius: 3px;
+  .calev-del:hover { background: var(--danger); border-color: var(--danger); }
+  .calev-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .calev-row { border: 1.5px solid var(--border); border-radius: 9px; padding: 10px 12px; background: var(--cream); }
+  .calev-row-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .calev-row .ra-cell { display: flex; align-items: center; gap: 8px; }
+  .calev-row .ra-badge {
+    font-size: 12px; font-weight: 700; color: #fff; background: var(--navy);
+    border-radius: 6px; padding: 4px 9px; min-width: 40px; text-align: center; cursor: help;
   }
-  .cal-ev-table .ra-cell { display: flex; align-items: center; gap: 8px; }
+  .calev-ra-input {
+    width: 70px; border: 1.5px solid var(--border); border-radius: 6px; padding: 5px 8px;
+    font-size: 13px; font-weight: 600; font-family: 'Source Sans 3', system-ui, sans-serif; background: var(--white);
+  }
+  .calev-pct {
+    display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12.5px; color: var(--text-muted);
+    background: var(--white); border: 1.5px solid var(--border); border-radius: 20px; padding: 4px 6px 4px 12px;
+  }
+  .calev-pct input {
+    width: 64px; border: none; background: none; text-align: right; font-size: 14px; font-weight: 700; color: var(--navy); box-sizing: content-box;
+    padding: 2px 0; font-family: 'Source Sans 3', system-ui, sans-serif;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  .calev-pct input:focus { outline: none; }
+  .calev-pct input::-webkit-outer-spin-button, .calev-pct input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .calev-row-del {
+    flex: 0 0 auto; width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border);
+    background: var(--white); color: var(--text-muted); cursor: pointer; font-size: 13px;
+  }
+  .calev-row-del:hover { border-color: var(--danger); color: #fff; background: var(--danger); }
+  .calev-instr { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--border); }
+  .calev-instr-lbl { font-size: 12px; font-weight: 700; color: var(--text-muted); flex: 0 0 auto; }
+  .instr-list { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+  .instr-chip {
+    display: inline-flex; align-items: center; gap: 3px; background: var(--white); border: 1.5px solid #c5d4ef;
+    border-radius: 16px; padding: 3px 6px 3px 10px;
+  }
+  .instr-chip .instr-pct {
+    width: 30px; border: none; background: none; text-align: right; font-size: 13px; font-weight: 700; color: var(--primary);
+    padding: 0; font-family: 'Source Sans 3', system-ui, sans-serif; box-sizing: content-box;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  .instr-chip .instr-pct::-webkit-outer-spin-button, .instr-chip .instr-pct::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .instr-chip .instr-label {
+    border: none; background: none; font-size: 12.5px; color: var(--text); padding: 0 2px; min-width: 40px; width: 9ch;
+    font-family: 'Source Sans 3', system-ui, sans-serif;
+  }
+  .instr-chip .instr-pct:focus, .instr-chip .instr-label:focus { outline: none; }
+  .instr-del { border: none; background: none; color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 0 2px; line-height: 1; }
+  .instr-del:hover { color: var(--danger); }
+  .instr-add {
+    border: 1.5px dashed #c5d4ef; background: none; color: var(--primary); border-radius: 16px;
+    padding: 4px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: 'Source Sans 3', system-ui, sans-serif;
+  }
+  .instr-add:hover { background: var(--primary-soft); }
+  .instr-total { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 10px; flex: 0 0 auto; }
+  .instr-total.ok   { background: #dcf3e6; color: #13623a; }
+  .instr-total.warn { background: #fff1d6; color: #8a5300; }
+  .calev-add-ra {
+    align-self: flex-start; border: 1.5px dashed var(--border); background: none; color: var(--navy);
+    border-radius: 8px; padding: 7px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .calev-add-ra:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+  .calev-add-block { margin-top: 2px; }
+  @media (max-width: 640px) {
+    .calev-pct { margin-left: 0; }
+    .calev-row-top { align-items: stretch; }
+  }
 
   /* ===== CAMPO DIVIDER ===== */
     display: flex; align-items: center; gap: 12px;
@@ -2865,98 +2926,154 @@ function setCalEv(fieldKey, val) {
   saveState();
 }
 
+// Instrumentos: "40% ACTIVIDADES\n60% EXAMEN" ↔ [{pct,label}], conservando
+// cualquier línea que no siga el patrón "NN% texto"
+function parseInstrumentos(text) {
+  const items = [], extra = [];
+  String(text || '').split('\n').forEach(line => {
+    if (!line.trim()) return;
+    const m = /^\s*(\d{1,3})\s*%\s*(.*)$/.exec(line);
+    if (m) items.push({ pct: Math.min(100, parseInt(m[1]) || 0), label: m[2].trim() });
+    else extra.push(line);
+  });
+  return { items, extra };
+}
+function formatInstrumentos(items, extra) {
+  return [...items.map(x => `${x.pct}% ${x.label}`.trim()), ...extra].join('\n');
+}
+
 function renderCalEv(field, data, locked) {
   const blocks = (Array.isArray(data[field.key]) && data[field.key].length)
     ? data[field.key] : structuredClone(DEFAULT_CAL_EV);
+  const raCe = getModuleRaCe(data);
 
-  let html = `<div class="cal-ev-wrap" id="calev_${field.key}">`;
-
-  blocks.forEach((block, bi) => {
-    html += `<div class="cal-ev-block">
-      <div class="cal-ev-head">
-        <input value="${escHtml(block.ev)}" ${locked?'readonly':''}
-          style="background:transparent;border:none;color:white;font-weight:600;font-size:14px;font-family:'Source Sans 3',system-ui,sans-serif;width:200px;"
-          oninput="calEvUpdateEvName('${field.key}',${bi},this.value)" title="Nombre de la evaluación">
-        ${!locked?`<button onclick="calEvRemoveBlock('${field.key}',${bi})"
-          style="background:rgba(255,255,255,.15);border:none;color:white;cursor:pointer;border-radius:4px;padding:3px 8px;font-size:12px;">✕ Eliminar</button>`:''}
+  const html = blocks.map((block, bi) => `
+    <div class="calev-card">
+      <div class="calev-head">
+        <span class="calev-num">${bi + 1}</span>
+        <input class="calev-name" value="${escHtml(block.ev)}" ${locked ? 'readonly' : ''}
+          placeholder="Nombre de la evaluación" title="Nombre de la evaluación"
+          oninput="calEvUpdateEvName('${field.key}',${bi},this.value)">
+        ${!locked ? `<button class="calev-del" title="Eliminar evaluación" onclick="calEvRemoveBlock('${field.key}',${bi})">✕</button>` : ''}
       </div>
-      <table class="cal-ev-table">
-        <thead><tr>
-          <th style="width:80px">RA</th>
-          <th style="width:70px">%</th>
-          <th>Ponderación por instrumentos</th>
-          ${!locked?'<th style="width:32px"></th>':''}
-        </tr></thead>
-        <tbody id="calev_tbody_${field.key}_${bi}">`;
+      <div class="calev-body">
+        ${block.rows.map((row, ri) => renderCalEvRow(field.key, bi, ri, row, raCe, locked)).join('') || '<div class="ud-empty">Sin resultados de aprendizaje en esta evaluación.</div>'}
+        ${!locked ? `<button class="calev-add-ra" onclick="calEvAddRow('${field.key}',${bi})">＋ Añadir RA</button>` : ''}
+      </div>
+    </div>`).join('');
 
-    block.rows.forEach((row, ri) => {
-      html += `<tr>
-        <td><div class="ra-cell">
-          <span class="ra-badge" style="font-size:10px">${escHtml(row.ra)}</span>
-          <input type="text" value="${escHtml(row.ra)}" ${locked?'readonly':''}
-            style="width:54px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;font-weight:600;"
-            oninput="calEvUpdateCell('${field.key}',${bi},${ri},'ra',this.value)">
-        </div></td>
-        <td><input type="number" min="0" max="100" value="${row.pct||0}" ${locked?'readonly':''}
-          style="width:58px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:13px;text-align:right;"
-          oninput="calEvUpdateCell('${field.key}',${bi},${ri},'pct',this.value)">%</td>
-        <td><textarea rows="2" ${locked?'readonly':''}
-          style="width:100%;border:none;background:transparent;font-family:'Source Sans 3',system-ui,sans-serif;font-size:12px;resize:vertical;"
-          oninput="calEvUpdateCell('${field.key}',${bi},${ri},'instrumentos',this.value)">${escHtml(row.instrumentos||'')}</textarea></td>
-        ${!locked?`<td style="text-align:center"><button onclick="calEvRemoveRow('${field.key}',${bi},${ri})"
-          style="background:none;border:none;cursor:pointer;color:#bbb;font-size:16px;">✕</button></td>`:''}
-      </tr>`;
-    });
+  return `<div class="cal-ev-wrap" id="calev_${field.key}">${html}</div>
+    ${!locked ? `<button class="btn btn-ghost calev-add-block" onclick="calEvAddBlock('${field.key}')">＋ Añadir evaluación</button>` : ''}`;
+}
 
-    html += `</tbody></table>
-      ${!locked?`<div style="padding:8px 10px;border-top:1px solid var(--border)">
-        <button class="table-add-row" style="margin:0" onclick="calEvAddRow('${field.key}',${bi})">+ Añadir RA</button>
-      </div>`:''}
-    </div>`;
-  });
+function renderCalEvRow(fk, bi, ri, row, raCe, locked) {
+  const { items, extra } = parseInstrumentos(row.instrumentos);
+  const sum  = items.reduce((a, x) => a + x.pct, 0);
+  const done = items.length && sum === 100;
+  const raInfo = raCe.byNum[parseInt(String(row.ra).replace(/\D/g, ''))];
+  const dis = locked ? 'disabled' : '';
 
-  html += `</div>`;
-  if (!locked) {
-    html += `<button class="table-add-row" style="margin-top:8px" onclick="calEvAddBlock('${field.key}')">+ Añadir evaluación</button>`;
-  }
-  return html;
+  const chips = items.map((it, ii) => `
+    <div class="instr-chip">
+      <input type="number" class="instr-pct" min="0" max="100" value="${it.pct}" ${dis}
+        onchange="calEvUpdateInstrument('${fk}',${bi},${ri},${ii},'pct',this.value)">%
+      <input type="text" class="instr-label" value="${escHtml(it.label)}" ${locked ? 'readonly' : ''}
+        placeholder="Instrumento…" onchange="calEvUpdateInstrument('${fk}',${bi},${ri},${ii},'label',this.value)">
+      ${!locked ? `<button class="instr-del" title="Quitar" onclick="calEvRemoveInstrument('${fk}',${bi},${ri},${ii})">✕</button>` : ''}
+    </div>`).join('');
+
+  return `<div class="calev-row">
+    <div class="calev-row-top">
+      <div class="ra-cell">
+        <span class="ra-badge" title="${escHtml(raInfo?.text || '')}">${escHtml(row.ra || '—')}</span>
+        <input type="text" value="${escHtml(row.ra)}" ${locked ? 'readonly' : ''} class="calev-ra-input"
+          placeholder="RA1" title="Resultado de aprendizaje"
+          onchange="calEvUpdateCell('${fk}',${bi},${ri},'ra',this.value)">
+      </div>
+      <label class="calev-pct" title="Porcentaje de este RA que se evalúa en esta evaluación">
+        <input type="number" min="0" max="100" value="${row.pct || 0}" ${dis}
+          onchange="calEvUpdateCell('${fk}',${bi},${ri},'pct',this.value)">
+        <span>% del RA</span>
+      </label>
+      ${!locked ? `<button class="calev-row-del" title="Eliminar RA" onclick="calEvRemoveRow('${fk}',${bi},${ri})">✕</button>` : ''}
+    </div>
+    <div class="calev-instr">
+      <span class="calev-instr-lbl">Instrumentos</span>
+      <div class="instr-list">${chips}
+        ${!locked ? `<button class="instr-add" onclick="calEvAddInstrument('${fk}',${bi},${ri})">＋ instrumento</button>` : ''}
+      </div>
+      ${items.length ? `<span class="instr-total ${done ? 'ok' : 'warn'}" title="Suma de los porcentajes de instrumentos">${done ? '✓' : '⚠'} ${sum}%</span>` : ''}
+    </div>
+    ${extra.length ? `<div class="ud-note">📝 ${escHtml(extra.join(' · '))}</div>` : ''}
+  </div>`;
+}
+
+// Refresca solo una tarjeta de evaluación (evita perder el foco del resto)
+function calEvRefreshBlock(fk, bi) {
+  const d = getCalEv(fk);
+  const raCe = getModuleRaCe(state.modules[state.activeId].data);
+  const card = document.querySelectorAll(`#calev_${fk} .calev-card`)[bi];
+  if (!card) return renderMainContent();
+  const body = card.querySelector('.calev-body');
+  body.innerHTML = d[bi].rows.map((row, ri) => renderCalEvRow(fk, bi, ri, row, raCe, false)).join('')
+    + `<button class="calev-add-ra" onclick="calEvAddRow('${fk}',${bi})">＋ Añadir RA</button>`;
 }
 
 // Funciones CRUD de la tabla calificación por evaluación
 function calEvUpdateEvName(fk, bi, val) {
   const d = getCalEv(fk); d[bi].ev = val; setCalEv(fk, d);
-  // actualizar badge sin re-render
-  const inp = document.querySelector(`#calev_${fk} .cal-ev-block:nth-child(${bi+1}) .cal-ev-head input`);
 }
 function calEvUpdateCell(fk, bi, ri, col, val) {
   const d = getCalEv(fk);
-  d[bi].rows[ri][col] = col === 'pct' ? (parseInt(val)||0) : val;
+  d[bi].rows[ri][col] = col === 'pct' ? Math.max(0, Math.min(100, parseInt(val) || 0)) : val;
   setCalEv(fk, d);
-  // actualizar badge RA si cambió el id
-  if (col === 'ra') {
-    const badge = document.querySelector(`#calev_tbody_${fk}_${bi} tr:nth-child(${ri+1}) .ra-badge`);
-    if (badge) badge.textContent = val;
-  }
+  calEvRefreshBlock(fk, bi);
+}
+function calEvUpdateInstrument(fk, bi, ri, ii, prop, val) {
+  const d = getCalEv(fk);
+  const { items, extra } = parseInstrumentos(d[bi].rows[ri].instrumentos);
+  items[ii][prop] = prop === 'pct' ? Math.max(0, Math.min(100, parseInt(val) || 0)) : val;
+  d[bi].rows[ri].instrumentos = formatInstrumentos(items, extra);
+  setCalEv(fk, d);
+  calEvRefreshBlock(fk, bi);
+}
+function calEvAddInstrument(fk, bi, ri) {
+  const d = getCalEv(fk);
+  const { items, extra } = parseInstrumentos(d[bi].rows[ri].instrumentos);
+  const used = items.reduce((a, x) => a + x.pct, 0);
+  items.push({ pct: Math.max(0, 100 - used), label: '' });
+  d[bi].rows[ri].instrumentos = formatInstrumentos(items, extra);
+  setCalEv(fk, d);
+  calEvRefreshBlock(fk, bi);
+}
+function calEvRemoveInstrument(fk, bi, ri, ii) {
+  const d = getCalEv(fk);
+  const { items, extra } = parseInstrumentos(d[bi].rows[ri].instrumentos);
+  items.splice(ii, 1);
+  d[bi].rows[ri].instrumentos = formatInstrumentos(items, extra);
+  setCalEv(fk, d);
+  calEvRefreshBlock(fk, bi);
 }
 function calEvAddRow(fk, bi) {
   const d = getCalEv(fk);
-  d[bi].rows.push({ ra: `RA${d[bi].rows.length+1}`, pct: 100, instrumentos: '30% ACTIVIDADES\n70% EXAMEN' });
+  d[bi].rows.push({ ra: `RA${d[bi].rows.length + 1}`, pct: 100, instrumentos: '30% ACTIVIDADES\n70% EXAMEN' });
   setCalEv(fk, d);
-  renderMainContent();
+  calEvRefreshBlock(fk, bi);
 }
 function calEvRemoveRow(fk, bi, ri) {
   const d = getCalEv(fk);
   d[bi].rows.splice(ri, 1);
   setCalEv(fk, d);
-  renderMainContent();
+  calEvRefreshBlock(fk, bi);
 }
 function calEvAddBlock(fk) {
   const d = getCalEv(fk);
-  d.push({ ev: `${d.length+1}ª Evaluación`, rows: [{ ra: 'RA1', pct: 100, instrumentos: '30% ACTIVIDADES\n70% EXAMEN' }] });
+  d.push({ ev: `${d.length + 1}ª Evaluación`, rows: [{ ra: 'RA1', pct: 100, instrumentos: '30% ACTIVIDADES\n70% EXAMEN' }] });
   setCalEv(fk, d);
   renderMainContent();
 }
 function calEvRemoveBlock(fk, bi) {
+  if (!confirm('¿Eliminar esta evaluación de la tabla de calificación?')) return;
   const d = getCalEv(fk);
   d.splice(bi, 1);
   setCalEv(fk, d);
