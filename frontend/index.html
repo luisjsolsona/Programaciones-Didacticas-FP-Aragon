@@ -268,35 +268,63 @@ const Audit = {
   .section-body.hidden { display: none; }
 
   /* ===== FIELDS ===== */
-  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field { display: flex; flex-direction: column; gap: 7px; }
   .field-label {
-    font-size: 15px; font-weight: 600; color: var(--navy);
-    display: flex; align-items: center; gap: 6px;
+    font-size: 14.5px; font-weight: 600; color: var(--navy);
+    display: flex; align-items: center; gap: 7px;
     letter-spacing: 0.01em;
   }
-  /* Campos recomendados — zona fija + zona docente */
-  .recommended-wrap {
-    border: 1.5px solid var(--locked-border); border-radius: 8px; overflow: hidden;
+  .field:focus-within > .field-label { color: var(--primary); }
+  .field input, .field select, .field > textarea, .field .rich-editor-wrap {
+    transition: border-color .15s, box-shadow .15s;
   }
-  .recommended-fixed {
-    background: var(--locked-bg); border-bottom: 1.5px dashed var(--locked-border);
-    padding: 8px 12px;
-  }
-  .recommended-extra { background: white; padding: 8px 12px 10px; }
-  .recommended-extra input[type="text"] {
-    width: 100%; border: 1.5px solid var(--border); border-radius: 6px;
-    padding: 8px 12px; font-size: 13px; font-family: 'Source Sans 3', system-ui, sans-serif;
-  }
-  .recommended-extra .rich-editor-wrap { margin-top: 4px; }
-  .recommended-label {
-    font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .06em; color: var(--text-muted); margin-bottom: 4px;
-  }
+  .field input:hover:not(:focus):not([readonly]),
+  .field select:hover:not(:focus),
+  .field > textarea:hover:not(:focus):not([readonly]) { border-color: #b7c3d9; }
 
   .locked-badge {
-    background: var(--navy); color: var(--gold);
-    font-size: 9px; padding: 2px 5px; border-radius: 3px; letter-spacing: 0.05em;
+    background: var(--gold); color: var(--navy); text-transform: uppercase;
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.04em;
   }
+
+  /* ===== CAMPOS RECOMENDADOS (⭐ fijados por el ciclo) ===== */
+  .reco-card {
+    border: 1.5px solid var(--locked-border); border-radius: 10px; overflow: hidden;
+    background: var(--white); box-shadow: 0 1px 2px rgba(180,140,20,.06);
+  }
+  .reco-fixed { position: relative; padding: 12px 14px 12px 18px; background: var(--locked-bg); }
+  .reco-fixed::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--gold);
+  }
+  .reco-fixed-label {
+    display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em; color: #8a6d1a; margin-bottom: 5px;
+  }
+  .reco-fixed-content { font-size: 14px; color: var(--text); line-height: 1.5; }
+  .reco-fixed-content:empty::before { content: '—'; color: var(--text-muted); }
+  .reco-fixed .rich-content.locked { background: transparent; color: var(--text); padding: 0; }
+
+  .reco-details { border-top: 1px solid var(--locked-border); background: var(--white); }
+  .reco-details > summary {
+    list-style: none; cursor: pointer; padding: 9px 14px; display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px; font-weight: 600; color: var(--text-muted); user-select: none;
+  }
+  .reco-details > summary::-webkit-details-marker { display: none; }
+  .reco-details > summary::before {
+    content: '▸'; display: inline-block; font-size: 11px; color: var(--text-muted);
+    transition: transform .15s; width: 10px;
+  }
+  .reco-details[open] > summary::before { transform: rotate(90deg); }
+  .reco-details > summary:hover { color: var(--primary); background: var(--primary-soft); }
+  .reco-details > summary .reco-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--primary); flex: 0 0 auto;
+  }
+  .reco-details-body { padding: 2px 14px 12px; }
+  .reco-details-body input[type="text"] {
+    width: 100%; border: 1.5px solid var(--border); border-radius: var(--radius);
+    padding: 9px 12px; font-size: 14px; font-family: 'Source Sans 3', system-ui, sans-serif;
+  }
+  .reco-details-body input[type="text"]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
   .field input, .field textarea, .field select {
     width: 100%; padding: 10px 14px;
     border: 1.5px solid var(--border); border-radius: 6px;
@@ -2733,14 +2761,16 @@ function renderField(field, data, forceReadOnly = false) {
       // ── Campo recomendado: zona fija + zona editable del docente ──
       const extraKey = field.key + '_extra';
       const extraVal = data[extraKey] || '';
+      const hasExtra = htmlToLines(extraVal).trim().length > 0;
       innerHtml = `
-        <div class="recommended-wrap">
-          <div class="recommended-fixed">
-            <div class="recommended-label">📌 Valor recomendado (no editable)</div>
-            <div class="rich-content ${tall} locked" style="min-height:60px">${value || ''}</div>
+        <div class="reco-card">
+          <div class="reco-fixed">
+            <div class="reco-fixed-label">📌 Valor recomendado</div>
+            <div class="rich-content ${tall} locked reco-fixed-content" style="min-height:60px">${value || ''}</div>
           </div>
-          <div class="recommended-extra">
-            <div class="recommended-label">✏️ Tu aportación (se añade al anterior)</div>
+          <details class="reco-details" ${hasExtra ? 'open' : ''}>
+            <summary>✏️ Tu aportación${hasExtra ? '<span class="reco-dot" title="Ya has escrito algo aquí"></span>' : ' (opcional)'}</summary>
+            <div class="reco-details-body">
             <div class="rich-editor-wrap" id="wrap_${extraKey}">
               <div class="rich-toolbar" id="toolbar_${extraKey}">
                 <button onmousedown="event.preventDefault();rte('bold','${extraKey}')" title="Negrita"><b>B</b></button>
@@ -2763,7 +2793,8 @@ function renderField(field, data, forceReadOnly = false) {
                 onpaste="rtePaste(event,'${extraKey}')"
               ></div>
             </div>
-          </div>
+            </div>
+          </details>
         </div>`;
     } else {
       const fieldKey = field.key;
@@ -2799,19 +2830,22 @@ function renderField(field, data, forceReadOnly = false) {
       // ── Campo recomendado texto corto: zona fija + zona editable ──
       const extraKey = field.key + '_extra';
       const extraVal = data[extraKey] || '';
+      const hasExtra = String(extraVal).trim().length > 0;
       innerHtml = `
-        <div class="recommended-wrap">
-          <div class="recommended-fixed" style="padding:8px 12px">
-            <div class="recommended-label">📌 Valor recomendado (no editable)</div>
-            <div style="font-size:13px;color:var(--text)">${escHtml(value)}</div>
+        <div class="reco-card">
+          <div class="reco-fixed">
+            <div class="reco-fixed-label">📌 Valor recomendado</div>
+            <div class="reco-fixed-content">${escHtml(value)}</div>
           </div>
-          <div class="recommended-extra">
-            <div class="recommended-label">✏️ Tu aportación (se añade al anterior)</div>
-            <input type="text" id="field_text_${extraKey}"
-              value="${escHtml(extraVal)}"
-              placeholder="Escribe aquí tu aportación adicional…"
-              onchange="updateField('${extraKey}', this.value)${extraOnchange ? '; ' + extraOnchange : ''}">
-          </div>
+          <details class="reco-details" ${hasExtra ? 'open' : ''}>
+            <summary>✏️ Tu aportación${hasExtra ? '<span class="reco-dot" title="Ya has escrito algo aquí"></span>' : ' (opcional)'}</summary>
+            <div class="reco-details-body">
+              <input type="text" id="field_text_${extraKey}"
+                value="${escHtml(extraVal)}"
+                placeholder="Escribe aquí tu aportación adicional…"
+                onchange="updateField('${extraKey}', this.value)${extraOnchange ? '; ' + extraOnchange : ''}">
+            </div>
+          </details>
         </div>`;
     } else {
       const displayVal = '';
