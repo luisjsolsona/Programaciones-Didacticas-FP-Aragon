@@ -1140,9 +1140,11 @@ const Audit = {
   .seg-teacher.open .seg-body { display: block; }
   .seg-table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
   .seg-table th:nth-child(2) { width: 95px; } .seg-table th:nth-child(3) { width: 85px; }
-  .seg-table th:nth-child(4) { width: 130px; } .seg-table th:nth-child(5) { width: 110px; } .seg-table th:nth-child(6) { width: 48px; }
-  .seg-act { width: 34px; height: 32px; border-radius: 7px; border: 1px solid var(--border); background: var(--white); cursor: pointer; font-size: 15px; }
+  .seg-table th:nth-child(4) { width: 130px; } .seg-table th:nth-child(5) { width: 110px; } .seg-table th:nth-child(6), .seg-table th:nth-child(7) { width: 40px; }
+  .seg-actions-cell { display: flex; gap: 6px; }
+  .seg-act { width: 34px; height: 32px; border-radius: 7px; border: 1px solid var(--border); background: var(--white); cursor: pointer; font-size: 15px; flex: 0 0 auto; }
   .seg-act:hover { border-color: var(--primary); background: var(--primary-soft); }
+  .seg-act-danger:hover { border-color: var(--danger); background: #fdecea; }
   .seg-table td:first-child { overflow-wrap: anywhere; }
   .seg-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted);
                   padding: 6px 8px; border-bottom: 1.5px solid var(--border); }
@@ -5558,8 +5560,12 @@ function renderByTeacher() {
         <td>${escHtml(m.cicloCod || '—')}</td>
         <td>${estadoBadge(m.estado)}</td>
         <td title="${escHtml(fmtDate(m.updated_at))}">${relTime(m.updated_at)}</td>
-        <td><button class="seg-act" title="Reasignar a otro docente"
-          onclick="openCopyToTeacher('move', ${m.id}, { name: ${escHtml(JSON.stringify(m.titulo || ''))}, userId: ${m.user_id}, cicloId: ${m.ciclo_id ?? 'null'} }, loadByTeacher)">🔁</button></td>
+        <td class="seg-actions-cell">
+          <button class="seg-act" title="Reasignar a otro docente"
+            onclick="openCopyToTeacher('move', ${m.id}, { name: ${escHtml(JSON.stringify(m.titulo || ''))}, userId: ${m.user_id}, cicloId: ${m.ciclo_id ?? 'null'} }, loadByTeacher)">🔁</button>
+          <button class="seg-act seg-act-danger" title="Mover a la papelera"
+            onclick="deleteFromAdmin(${m.id}, ${escHtml(JSON.stringify(m.titulo || 'esta programación'))})">🗑</button>
+        </td>
       </tr>`).join('');
     return `<div class="seg-teacher ${open ? 'open' : ''}" id="seg_${g.u.id}">
       <button class="seg-head" onclick="toggleSegTeacher(${g.u.id})">
@@ -5571,7 +5577,7 @@ function renderByTeacher() {
       </button>
       <div class="seg-body">
         ${g.mods.length ? `<div class="table-scroll"><table class="seg-table">
-          <thead><tr><th>Programación</th><th>Código</th><th>Ciclo</th><th>Estado</th><th>Modificada</th><th></th></tr></thead>
+          <thead><tr><th>Programación</th><th>Código</th><th>Ciclo</th><th>Estado</th><th>Modificada</th><th></th><th></th></tr></thead>
           <tbody>${rows}</tbody></table></div>`
           : '<div class="ud-hint" style="padding:8px 4px">No tiene programaciones con estos filtros.</div>'}
       </div>
@@ -5588,6 +5594,18 @@ function toggleSegTeacher(id) {
 function segExpandAll(open) {
   _seg.open = new Set(open ? _seg.users.map(u => u.id) : []);
   renderByTeacher();
+}
+
+async function deleteFromAdmin(id, titulo) {
+  if (!confirm(`¿Mover "${titulo}" a la papelera?\n\nEl docente podrá recuperarla durante 30 días desde su "🗑 Papelera".`)) return;
+  try {
+    await Modules.delete(id);
+    delete state.modules[id];
+    if (state.activeId == id) { state.activeId = null; renderMainContent(); }
+    renderModulesList();
+    loadByTeacher();
+    showStatus(`🗑 "${titulo}" movida a la papelera`);
+  } catch (e) { showStatus('Error al eliminar: ' + e.message, 'error'); }
 }
 
 async function openFromAdmin(id) {
