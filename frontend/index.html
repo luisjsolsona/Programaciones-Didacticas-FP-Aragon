@@ -3539,9 +3539,40 @@ function buildDocumentHtml(mod, data, target = 'preview') {
   FIELD_DEFS.forEach(sec => {
     body += `<h2 id="${sec.section}">${sec.letter}) ${sec.label.replace(/^[a-z]\)\s*/i,'')}</h2>`;
     sec.fields.forEach(field => {
+      if (field.type === 'divider' || field.type === 'ud_coverage') return;
+
+      // Tabla de calificación por evaluación: RA, % y sus instrumentos
+      if (field.type === 'calificacion_ev') {
+        const blocks = data[field.key];
+        if (!Array.isArray(blocks) || !blocks.length) return;
+        body += `<p><strong>${escHtml(field.label)}</strong></p>`;
+        blocks.forEach(block => {
+          if (block.ev) body += `<p><strong>${escHtml(block.ev)}</strong></p>`;
+          body += `<table><thead><tr><th>RA</th><th>%</th><th>Instrumentos</th></tr></thead><tbody>`;
+          (block.rows || []).forEach(row => {
+            body += `<tr><td>${escHtml(row.ra || '')}</td><td>${escHtml(String(row.pct ?? ''))}%</td><td>${escHtml(row.instrumentos || '').replace(/\n/g,'<br>')}</td></tr>`;
+          });
+          body += `</tbody></table>`;
+        });
+        return;
+      }
+
+      // Ponderación de RA sobre la nota final
+      if (field.type === 'ra_pct_dynamic') {
+        const ras = data[field.key];
+        if (!Array.isArray(ras) || !ras.length) return;
+        body += `<p><strong>${escHtml(field.label)}</strong></p>`;
+        body += `<table><thead><tr><th>RA</th><th>Ponderación (%)</th></tr></thead><tbody>`;
+        ras.forEach(r => { body += `<tr><td>${escHtml(r.id || '')}</td><td>${escHtml(String(r.pct ?? 0))}%</td></tr>`; });
+        body += `</tbody></table>`;
+        return;
+      }
+
       // Campos calculados: siempre el valor actual (no el guardado, que puede estar desfasado)
-      const value = field.type === 'computed' ? computeField(field.key, data) : data[field.key];
-      if (!value) return;
+      const value    = field.type === 'computed' ? computeField(field.key, data) : data[field.key];
+      // Campos recomendados: lo que haya escrito el docente además del valor fijado
+      const extraVal = data[field.key + '_extra'];
+      if (!value && !extraVal) return;
 
       if ((field.type === 'table' || field.type === 'ud_seq') && Array.isArray(value)) {
         body += `<p><strong>${escHtml(field.label)}</strong></p>`;
@@ -3557,15 +3588,15 @@ function buildDocumentHtml(mod, data, target = 'preview') {
           body += `<tr><td>${ra}</td><td>${pct}%</td></tr>`;
         });
         body += `</tbody></table>`;
-      } else if (typeof value === 'string') {
+      } else {
         body += `<p><strong>${escHtml(field.label)}</strong></p>`;
-        // El valor puede ser HTML rico (del editor) o texto plano
-        const isRichHtml = /<[a-z][\s\S]*>/i.test(value);
-        if (isRichHtml) {
-          body += `<div class="rich-value">${sanitizeHtml(value)}</div>`;
-        } else {
-          body += `<p>${escHtml(value).replace(/\n/g,'<br>')}</p>`;
-        }
+        // El valor recomendado y/o la aportación del docente pueden ser HTML rico o texto plano
+        [value, extraVal].filter(Boolean).forEach(v => {
+          const isRichHtml = /<[a-z][\s\S]*>/i.test(v);
+          body += isRichHtml
+            ? `<div class="rich-value">${sanitizeHtml(v)}</div>`
+            : `<p>${escHtml(v).replace(/\n/g,'<br>')}</p>`;
+        });
       }
     });
   });
