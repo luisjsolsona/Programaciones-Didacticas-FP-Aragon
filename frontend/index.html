@@ -2767,31 +2767,33 @@ function renderMainContent() {
   setTimeout(() => {
     FIELD_DEFS.forEach(section => {
       section.fields.forEach(field => {
+        const cicloLocked = !!(adminConfig.lockedFields?.[field.key]);
         if (field.type === 'textarea') {
-          const locked = isReadOnly || !!(adminConfig.lockedFields?.[field.key]);
-          if (locked) {
-            // Campo recomendado: poblar la zona de aportación del docente
+          if (cicloLocked) {
+            // Campo recomendado: poblar la zona de aportación del docente (si es editable)
             const extraKey = field.key + '_extra';
             const extraEl = document.getElementById('rte_' + extraKey);
             if (extraEl && data[extraKey]) extraEl.innerHTML = safeHtml(data[extraKey]);
             return;
           }
+          // Programación ajena con campo normal (no recomendado): ya viene inline en el HTML
+          if (isReadOnly) return;
           const el = document.getElementById('rte_' + field.key);
           if (!el) return;
-          const val = adminConfig.lockedValues?.[field.key] || data[field.key] || '';
+          const val = data[field.key] || '';
           if (val) el.innerHTML = safeHtml(val);
         } else if (field.type === 'text') {
-          const locked = isReadOnly || !!(adminConfig.lockedFields?.[field.key]);
-          if (locked) {
-            // Campo recomendado: poblar la zona de aportación del docente
+          if (cicloLocked) {
+            // Campo recomendado: poblar la zona de aportación del docente (si es editable)
             const extraKey = field.key + '_extra';
             const extraEl = document.getElementById('field_text_' + extraKey);
             if (extraEl && data[extraKey]) extraEl.value = data[extraKey];
             return;
           }
+          if (isReadOnly) return;
           const el = document.getElementById('field_text_' + field.key);
           if (!el) return;
-          const val = adminConfig.lockedValues?.[field.key] || data[field.key] || '';
+          const val = data[field.key] || '';
           if (val) el.value = val;
         }
       });
@@ -2818,10 +2820,12 @@ function toggleSection(sectionId) {
 }
 
 function renderField(field, data, forceReadOnly = false) {
-  // Un campo está bloqueado si: el admin lo fijó para este ciclo, O la programación es de solo lectura
-  const locked = forceReadOnly || !!(adminConfig.lockedFields && adminConfig.lockedFields[field.key]);
-  // Si está bloqueado y el admin fijó un valor, ese tiene prioridad sobre lo guardado en el módulo
-  const lockedAdminVal = locked && adminConfig.lockedValues && adminConfig.lockedValues[field.key];
+  // cicloLocked: el admin fijó este campo como recomendado para el ciclo (aunque sea tuya la programación)
+  // locked: no se puede editar, por cualquier motivo (recomendado O solo lectura por no ser tuya)
+  const cicloLocked = !!(adminConfig.lockedFields && adminConfig.lockedFields[field.key]);
+  const locked = forceReadOnly || cicloLocked;
+  // Si es un campo recomendado y el admin fijó un valor, ese tiene prioridad sobre lo guardado en el módulo
+  const lockedAdminVal = cicloLocked ? (adminConfig.lockedValues && adminConfig.lockedValues[field.key]) : undefined;
   const value = lockedAdminVal !== undefined && lockedAdminVal !== ''
     ? lockedAdminVal
     : (data[field.key] !== undefined ? data[field.key] : '');
@@ -2857,8 +2861,10 @@ function renderField(field, data, forceReadOnly = false) {
       placeholder="${field.placeholder||''}">`;
   } else if (field.type === 'textarea') {
     const tall = field.tall ? 'tall' : '';
-    if (locked) {
+    if (cicloLocked) {
       // ── Campo recomendado: zona fija + zona editable del docente ──
+      // Si la programación entera es de solo lectura (no es tuya), "Tu aportación"
+      // también debe quedar bloqueada: no es solo el valor recomendado.
       const extraKey = field.key + '_extra';
       const extraVal = data[extraKey] || '';
       const hasExtra = htmlToLines(extraVal).trim().length > 0;
@@ -2870,6 +2876,9 @@ function renderField(field, data, forceReadOnly = false) {
           <details class="reco-details" ${hasExtra ? 'open' : ''}>
             <summary>✏️ Tu aportación${hasExtra ? '<span class="reco-dot" title="Ya has escrito algo aquí"></span>' : ' (opcional)'}</summary>
             <div class="reco-details-body">
+            ${forceReadOnly ? `
+              <div class="rich-content ${tall} locked" style="min-height:40px">${hasExtra ? safeHtml(extraVal) : ''}</div>
+            ` : `
             <div class="rich-editor-wrap" id="wrap_${extraKey}">
               <div class="rich-toolbar" id="toolbar_${extraKey}">
                 <button onmousedown="event.preventDefault();rte('bold','${extraKey}')" title="Negrita"><b>B</b></button>
@@ -2892,9 +2901,13 @@ function renderField(field, data, forceReadOnly = false) {
                 onpaste="rtePaste(event,'${extraKey}')"
               ></div>
             </div>
+            `}
             </div>
           </details>
         </div>`;
+    } else if (forceReadOnly) {
+      // ── Programación ajena, campo normal (no recomendado): vista de solo lectura ──
+      innerHtml = `<div class="rich-content ${tall} locked" id="rte_${field.key}" style="min-height:60px">${value || ''}</div>`;
     } else {
       const fieldKey = field.key;
       innerHtml = `<div class="rich-editor-wrap" id="wrap_${fieldKey}">
@@ -2925,7 +2938,7 @@ function renderField(field, data, forceReadOnly = false) {
     }
   } else {
     const extraOnchange = field.onchange ? ` ${field.onchange}` : '';
-    if (locked) {
+    if (cicloLocked) {
       // ── Campo recomendado texto corto: zona fija + zona editable ──
       const extraKey = field.key + '_extra';
       const extraVal = data[extraKey] || '';
@@ -2938,13 +2951,17 @@ function renderField(field, data, forceReadOnly = false) {
           <details class="reco-details" ${hasExtra ? 'open' : ''}>
             <summary>✏️ Tu aportación${hasExtra ? '<span class="reco-dot" title="Ya has escrito algo aquí"></span>' : ' (opcional)'}</summary>
             <div class="reco-details-body">
-              <input type="text" id="field_text_${extraKey}"
+              <input type="text" id="field_text_${extraKey}" ${forceReadOnly ? 'readonly' : ''}
                 value="${escHtml(extraVal)}"
                 placeholder="Escribe aquí tu aportación adicional…"
                 onchange="updateField('${extraKey}', this.value)${extraOnchange ? '; ' + extraOnchange : ''}">
             </div>
           </details>
         </div>`;
+    } else if (forceReadOnly) {
+      // ── Programación ajena, campo normal (no recomendado): vista de solo lectura ──
+      innerHtml = `<input type="text" id="field_text_${field.key}" readonly
+        value="${escHtml(value)}" placeholder="${field.placeholder||''}">`;
     } else {
       const displayVal = '';
       innerHtml = `<input type="text" id="field_text_${field.key}"
@@ -2953,7 +2970,7 @@ function renderField(field, data, forceReadOnly = false) {
     }
   }
 
-  const lockBadge = locked ? '<span class="locked-badge">📌 Recomendado</span>' : '';
+  const lockBadge = cicloLocked ? '<span class="locked-badge">📌 Recomendado</span>' : '';
   const importBtn = (!locked && field.importTarget)
     ? `<button class="btn btn-sm" onclick="openImportModal('${field.importTarget}')"
         style="background:#1a6fad;color:white;font-size:11px;padding:3px 10px;margin-left:8px">
