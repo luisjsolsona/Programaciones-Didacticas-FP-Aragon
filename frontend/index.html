@@ -1782,7 +1782,7 @@ const Audit = {
             </p>
             <select id="adminCicloSelect"
               style="border:1.5px solid var(--border);border-radius:6px;padding:8px 12px;font-size:13px;width:100%;max-width:420px;margin-bottom:6px"
-              onchange="adminLoadCicloLocks(this.value)">
+              onchange="adminCicloSelectChange(this)">
               <option value="">— Selecciona un ciclo —</option>
             </select>
             <div id="adminCicloStatus" style="font-size:12px;color:var(--text-muted);margin-bottom:16px"></div>
@@ -3702,11 +3702,32 @@ function verifyAdmin() {
   }
 }
 
+// ── Aviso de cambios sin guardar en "Campos recomendados" ──
+// _locksDirty se activa con cualquier edición dentro de #adminLocksBody
+// (toggles, texto recomendado…) y se apaga al guardar o al cargar un ciclo.
+let _locksDirty = false;
+let _locksLoadedCiclo = '';  // último ciclo cargado sin cambios pendientes, para poder revertir el <select>
+
+function confirmDiscardLocksChanges() {
+  if (!_locksDirty) return true;
+  return confirm('Tienes cambios sin guardar en «Campos recomendados».\n\nSi continúas, se perderán.\n\n¿Continuar sin guardar?');
+}
+
 function closeAdminPanel() {
+  if (!confirmDiscardLocksChanges()) return;
+  _locksDirty = false;
   document.getElementById('adminPanelOverlay').classList.add('hidden');
 }
 
 function renderAdminPanel() {
+  // Delegación de eventos: cualquier cambio dentro del panel de campos
+  // recomendados marca el formulario como "sucio" (una sola vez basta)
+  const locksBodyEl = document.getElementById('adminLocksBody');
+  if (locksBodyEl && !locksBodyEl.dataset.dirtyBound) {
+    locksBodyEl.dataset.dirtyBound = '1';
+    ['input', 'change'].forEach(ev => locksBodyEl.addEventListener(ev, () => { _locksDirty = true; }));
+  }
+
   // Rellenar pestaña Campos bloqueados con los toggles
   const ADMIN_LOCKABLE_EXCLUDE = new Set(['modulo_nombre','modulo_codigo','modulo_horas','modulo_horas_sem','perdida_ec_horas']);
   const locksBody = document.getElementById('adminLocksBody');
@@ -3932,8 +3953,16 @@ async function adminLoadUsersAndProfiles() {
 }
 
 // Carga los locks del ciclo seleccionado y los marca en el panel
+// Envoltorio del <select> de ciclo: avisa de cambios sin guardar antes de recargar
+function adminCicloSelectChange(sel) {
+  if (!confirmDiscardLocksChanges()) { sel.value = _locksLoadedCiclo; return; }
+  _locksDirty = false;
+  adminLoadCicloLocks(sel.value);
+}
+
 async function adminLoadCicloLocks(cicloId) {
   const st = document.getElementById('adminCicloStatus');
+  _locksLoadedCiclo = cicloId || '';
   if (!cicloId) { if (st) st.textContent = ''; return; }
   document.querySelector('.admin-panel-body')?.scrollTo({ top: 0 });
   try {
@@ -4185,6 +4214,7 @@ async function saveAdminConfig() {
 
   // ── 3. Guardar estado local de la sesión admin ──
   await saveAdminState();
+  _locksDirty = false;
 
   // Mensaje de confirmación
   if (messages.length) {
