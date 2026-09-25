@@ -2127,12 +2127,13 @@ async function handleSaveConflict(id) {
   _saveConflict = true;
   clearTimeout(_saveDebounceTimer);
   setSaveIndicator('error', '⚠️ Conflicto de guardado');
-  const reload = confirm(
+  const keepMine = confirm(
     '⚠️ Esta programación se ha guardado desde otra pestaña, otro equipo u otra persona ' +
     'después de que la abrieras.\n\n' +
-    'ACEPTAR → cargar la versión guardada (se pierden tus últimos cambios).\n' +
-    'CANCELAR → sobrescribirla con lo que tienes en pantalla.'
+    'ACEPTAR → conservar lo que tienes aquí (sobrescribe la otra versión).\n' +
+    'CANCELAR → descartar tus cambios y cargar la versión guardada.'
   );
+  const reload = !keepMine;
   try {
     const mod = state.modules[id];
     if (reload) {
@@ -3054,7 +3055,7 @@ function getCalEv(fieldKey) {
 function setCalEv(fieldKey, val) {
   if (!state.activeId) return;
   state.modules[state.activeId].data[fieldKey] = val;
-  saveState();
+  saveStateLazy();
 }
 
 // Instrumentos: "40% ACTIVIDADES\n60% EXAMEN" ↔ [{pct,label}], conservando
@@ -3293,7 +3294,7 @@ function getRaDynList(fieldKey) {
 function setRaDynList(fieldKey, list) {
   if (!state.activeId) return;
   state.modules[state.activeId].data[fieldKey] = list;
-  saveState();
+  saveStateLazy();
 }
 function updateRaDynId(fieldKey, idx, newId) {
   const list = getRaDynList(fieldKey);
@@ -3345,7 +3346,7 @@ function rteUpdate(fieldKey) {
   if (!el || !state.activeId) return;
   if (state.modules[state.activeId]?.readOnly) return; // solo lectura — no guardar
   state.modules[state.activeId].data[fieldKey] = el.innerHTML;
-  saveState();
+  saveStateLazy();
   rteUpdateToolbar(fieldKey);
 }
 
@@ -3447,7 +3448,7 @@ function updateField(key, value) {
   if (key === 'modulo_nombre') state.modules[state.activeId].meta.name = value;
   if (key === 'modulo_codigo') state.modules[state.activeId].meta.code = value;
   if (key === 'curso') state.modules[state.activeId].meta.course = value;
-  saveState();
+  saveStateLazy();
 }
 
 function updateTableCell(fieldKey, rowIdx, colIdx, value) {
@@ -3456,7 +3457,7 @@ function updateTableCell(fieldKey, rowIdx, colIdx, value) {
   if (!data[fieldKey]) data[fieldKey] = [];
   if (!data[fieldKey][rowIdx]) data[fieldKey][rowIdx] = [];
   data[fieldKey][rowIdx][colIdx] = value;
-  saveState();
+  saveStateLazy();
 }
 
 function addTableRow(fieldKey, numCols) {
@@ -3468,7 +3469,7 @@ function addTableRow(fieldKey, numCols) {
   let rows = data[fieldKey];
   const emptyRow = Array(numCols).fill('');
   data[fieldKey] = [...rows, emptyRow];
-  saveState();
+  saveStateLazy();
 
   // Re-render just this table
   const tbody = document.getElementById('tbody_' + fieldKey);
@@ -3486,7 +3487,7 @@ function removeTableRow(fieldKey, rowIdx) {
   const data = state.modules[state.activeId].data;
   if (!data[fieldKey]) return;
   data[fieldKey].splice(rowIdx, 1);
-  saveState();
+  saveStateLazy();
   renderMainContent();
 }
 
@@ -3495,7 +3496,7 @@ function updateRaPct(fieldKey, raId, value) {
   const data = state.modules[state.activeId].data;
   if (!data[fieldKey]) data[fieldKey] = {};
   data[fieldKey][raId] = parseInt(value) || 0;
-  saveState();
+  saveStateLazy();
 }
 
 function updateBar(barId, value) {
